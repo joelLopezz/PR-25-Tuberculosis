@@ -1,0 +1,36 @@
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de editores
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Archivos de entorno y configuración
+.env
+.env.*
+!.env.example
+
+# Archivos sensibles
+contraseñas de usuarios.txt
+*.pem
+*.key
+*.cert
+
+# Logs
+logs
+*.log
+
+# Dependencias específicas que se repitan
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Cualquier archivo temporal
+*.tmp
