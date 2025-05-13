@@ -112,6 +112,6 @@ Sistema web de tres capas siguiendo el patrón MVC (Model-View-Controller):
 (Ver diagrama completo en la carpeta 'BaseDatos' del repositorio)
 
 #### Script Simple
-```sql
 -- Estructura básica de la base de datos dbTuber
 -- Ver archivo completo en "Base de Datos/Structure.sql"
+
