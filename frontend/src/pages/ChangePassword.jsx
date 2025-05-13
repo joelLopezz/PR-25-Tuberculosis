@@ -16,7 +16,7 @@ const ChangePassword = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  const { user, updateUser } = useAuth(); // Asegúrate de obtener updateUser
+const { user, updateUser, clearUser } = useAuth(); // Asegúrate de obtener también clearUser
   const navigate = useNavigate();
 
   // Esquema de validación
@@ -51,23 +51,21 @@ const ChangePassword = () => {
         new_password: values.new_password
       });
       
-      // Actualizar el estado del usuario para quitar la bandera de cambio de contraseña
-      if (user && updateUser) { // Verificar que updateUser existe
-        updateUser({
-          ...user,
-          password_change_required: false
-        });
-      } else {
-        console.warn("No se pudo actualizar el estado del usuario - updateUser no disponible");
-      }
-      
-      toast.success('Contraseña actualizada correctamente');
+      toast.success('Contraseña actualizada correctamente. Por favor inicie sesión con su nueva contraseña.');
       resetForm();
-      
-      // Redirigir a la página principal después de cambiar la contraseña
+
+      // Limpiar el token actual y redirigir al login
+      localStorage.removeItem('token');
+
+      // Limpiar el usuario del contexto
+      if (clearUser) {
+        clearUser();
+      }
+
+      // Redirigir al login después de un breve delay
       setTimeout(() => {
-        navigate('/dashboard');
-      }, 1500);
+        navigate('/login');
+      }, 2000);
     } catch (error) {
       toast.error(error.message || 'Error al cambiar la contraseña');
     } finally {

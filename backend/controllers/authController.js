@@ -67,13 +67,6 @@ exports.login = async (req, res) => {
         password_change_required: firstLogin
       }
     };
-
-    // Actualizar último login
-    await db.promise().query(
-      'UPDATE users SET last_login = NOW() WHERE id = ?',
-      [user.id]
-    );
-
     // Firmar el token
     jwt.sign(
       payload,
