@@ -198,6 +198,59 @@ const Navbar = () => {
                 </span>
               </Link>
             )}
+
+            {/* NUEVOS ENLACES: Pacientes, Referencias y Contrareferencias */}
+            {isMedicalStaff && (
+              <>
+                <Link
+                  to="/pacientes"
+                  className={`px-4 py-2 mx-1 rounded-md text-sm font-medium transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-md ${
+                    isActive('/pacientes')
+                      ? 'bg-white text-blue-700'
+                      : 'text-white border border-transparent hover:border-white/30'
+                  }`}
+                >
+                  <span className="flex items-center">
+                    <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    Pacientes
+                  </span>
+                </Link>
+
+                <Link
+                  to="/referencias"
+                  className={`px-4 py-2 mx-1 rounded-md text-sm font-medium transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-md ${
+                    isActive('/referencias')
+                      ? 'bg-white text-blue-700'
+                      : 'text-white border border-transparent hover:border-white/30'
+                  }`}
+                >
+                  <span className="flex items-center">
+                    <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                    Referencias
+                  </span>
+                </Link>
+
+                <Link
+                  to="/contrareferencias"
+                  className={`px-4 py-2 mx-1 rounded-md text-sm font-medium transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-md ${
+                    isActive('/contrareferencias')
+                      ? 'bg-white text-blue-700'
+                      : 'text-white border border-transparent hover:border-white/30'
+                  }`}
+                >
+                  <span className="flex items-center">
+                    <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path>
+                    </svg>
+                    Contrareferencias
+                  </span>
+                </Link>
+              </>
+            )}
             
             {/* Menú de usuario */}
             <div className="relative ml-3">
@@ -442,6 +495,62 @@ const Navbar = () => {
                 Personal
               </span>
             </Link>
+          )}
+
+          {/* NUEVOS ENLACES para versión móvil: Pacientes, Referencias y Contrareferencias */}
+          {isMedicalStaff && (
+            <>
+              <Link
+                to="/pacientes"
+                className={`block px-3 py-2 rounded-md text-base font-medium transition-all duration-200 ${
+                  isActive('/pacientes')
+                    ? 'bg-white text-blue-700'
+                    : 'text-white hover:bg-blue-700'
+                }`}
+                onClick={() => setIsOpen(false)}
+              >
+                <span className="flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                  </svg>
+                  Pacientes
+                </span>
+              </Link>
+
+              <Link
+                to="/referencias"
+                className={`block px-3 py-2 rounded-md text-base font-medium transition-all duration-200 ${
+                  isActive('/referencias')
+                    ? 'bg-white text-blue-700'
+                    : 'text-white hover:bg-blue-700'
+                }`}
+                onClick={() => setIsOpen(false)}
+              >
+                <span className="flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                  Referencias
+                </span>
+              </Link>
+
+              <Link
+                to="/contrareferencias"
+                className={`block px-3 py-2 rounded-md text-base font-medium transition-all duration-200 ${
+                  isActive('/contrareferencias')
+                    ? 'bg-white text-blue-700'
+                    : 'text-white hover:bg-blue-700'
+                }`}
+                onClick={() => setIsOpen(false)}
+              >
+                <span className="flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path>
+                  </svg>
+                  Contrareferencias
+                </span>
+              </Link>
+            </>
           )}
           
           {/* Opciones de usuario en móvil */}

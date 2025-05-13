@@ -7,9 +7,17 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node dependencies
 node_modules
+
+# Build outputs
 dist
 dist-ssr
+
+# Local env files
+.env
+.env.*
+!.env.example
 *.local
 
 # Editor directories and files
@@ -22,3 +30,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Testing
+coverage/
+
+# Others
+*.tsbuildinfo
+
+# Ignorar todos los web.config de cualquier subcarpeta
+**/web.config

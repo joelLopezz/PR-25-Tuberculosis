@@ -7,14 +7,47 @@
 !.env.example
 
 # Logs
-npm-debug.log*
 logs
 *.log
+npm-debug.log*
 
-# Carpetas de build
+# Lockfiles (si no usas yarn/pnpm)
+yarn.lock
+pnpm-lock.yaml
+
+# Builds
 /dist
 /build
 
-# Archivos de caché
+# Caché
 .npm
 .eslintcache
+
+# Testing y cobertura
+coverage/
+
+# Archivos de base de datos locales
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# Archivos temporales
+*.tmp
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Certificados y claves
+*.pem
+*.key
+*.cert
+
+# Archivos de IDE
+.vscode/
+.idea/
+
+# Ignorar todos los web.config de cualquier subcarpeta
+**/web.config
+

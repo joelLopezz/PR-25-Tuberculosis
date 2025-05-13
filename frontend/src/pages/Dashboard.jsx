@@ -4,10 +4,16 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getAllHospitals } from '../services/hospitalService';
+import { getAllPatients } from '../services/patientService';
+import { getAllReferrals } from '../services/referralService';
 
 const Dashboard = () => {
   const { user, isSuperAdmin, isSedesAdmin, isHospitalAdmin, isMedicalStaff } = useAuth();
   const [hospitalCount, setHospitalCount] = useState(0);
+  const [patientCount, setPatientCount] = useState(0);
+  const [referralCount, setReferralCount] = useState(0);
+  const [pendingReferrals, setPendingReferrals] = useState(0);
+  const [completedReferrals, setCompletedReferrals] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,6 +25,25 @@ const Dashboard = () => {
           const hospitals = await getAllHospitals();
           setHospitalCount(hospitals.length);
         }
+
+        // Obtener estadísticas para personal médico
+        if (isMedicalStaff || isHospitalAdmin || isSedesAdmin) {
+          // Cargar número de pacientes
+          const patients = await getAllPatients();
+          setPatientCount(patients.length);
+          
+          // Cargar referencias y contarlas por estado
+          const referrals = await getAllReferrals();
+          setReferralCount(referrals.length);
+          
+          // Contar referencias pendientes
+          const pending = referrals.filter(ref => ref.status === 'Pendiente').length;
+          setPendingReferrals(pending);
+          
+          // Contar referencias completadas
+          const completed = referrals.filter(ref => ref.status === 'Completada').length;
+          setCompletedReferrals(completed);
+        }
       } catch (error) {
         console.error('Error al cargar estadísticas:', error);
       } finally {
@@ -27,7 +52,7 @@ const Dashboard = () => {
     };
 
     fetchStats();
-  }, [isSedesAdmin, isHospitalAdmin]);
+  }, [isSedesAdmin, isHospitalAdmin, isMedicalStaff]);
 
   // Determinar el tipo de rol para mostrar el saludo personalizado
   const getUserRoleLabel = () => {
@@ -60,6 +85,131 @@ const Dashboard = () => {
           </p>
         </div>
       </div>
+
+      {/* Tarjetas de Estadísticas para personal médico */}
+      {(isMedicalStaff || isHospitalAdmin) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Tarjeta: Total de Pacientes */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:shadow-lg hover:transform hover:scale-105">
+            <div className="px-6 py-4 bg-blue-100 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-blue-800">Pacientes</h2>
+              <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+              </svg>
+            </div>
+            <div className="px-6 py-4">
+              {loading ? (
+                <div className="flex justify-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-700"></div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-4xl font-bold text-blue-600">{patientCount}</p>
+                    <p className="text-sm text-gray-600 mt-1">Pacientes registrados</p>
+                  </div>
+                  <Link 
+                    to="/pacientes" 
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none transition-colors duration-300"
+                  >
+                    Ver pacientes
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Tarjeta: Referencias Totales */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:shadow-lg hover:transform hover:scale-105">
+            <div className="px-6 py-4 bg-teal-100 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-teal-800">Referencias</h2>
+              <svg className="h-8 w-8 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </div>
+            <div className="px-6 py-4">
+              {loading ? (
+                <div className="flex justify-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-700"></div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-4xl font-bold text-teal-600">{referralCount}</p>
+                    <p className="text-sm text-gray-600 mt-1">Referencias totales</p>
+                  </div>
+                  <Link 
+                    to="/referencias" 
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none transition-colors duration-300"
+                  >
+                    Ver referencias
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Tarjeta: Referencias Pendientes */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:shadow-lg hover:transform hover:scale-105">
+            <div className="px-6 py-4 bg-yellow-100 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-yellow-800">Pendientes</h2>
+              <svg className="h-8 w-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+            <div className="px-6 py-4">
+              {loading ? (
+                <div className="flex justify-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-700"></div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-4xl font-bold text-yellow-600">{pendingReferrals}</p>
+                    <p className="text-sm text-gray-600 mt-1">Referencias pendientes</p>
+                  </div>
+                  <Link 
+                    to="/referencias" 
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none transition-colors duration-300"
+                  >
+                    Ver pendientes
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Tarjeta: Referencias Completadas */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:shadow-lg hover:transform hover:scale-105">
+            <div className="px-6 py-4 bg-purple-100 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-purple-800">Completadas</h2>
+              <svg className="h-8 w-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+            <div className="px-6 py-4">
+              {loading ? (
+                <div className="flex justify-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-700"></div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-4xl font-bold text-purple-600">{completedReferrals}</p>
+                    <p className="text-sm text-gray-600 mt-1">Referencias completadas</p>
+                  </div>
+                  <Link 
+                    to="/contrareferencias" 
+                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none transition-colors duration-300"
+                  >
+                    Ver contrareferencias
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tarjetas de acceso rápido */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
