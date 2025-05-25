@@ -51,3 +51,7 @@ Thumbs.db
 # Ignorar todos los web.config de cualquier subcarpeta
 **/web.config
 
+# Excluir scripts de seed
+/seedAdmin.js
+/seedSedesAdmin.js
+
