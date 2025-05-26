@@ -156,10 +156,12 @@ exports.forgotPassword = async (req, res) => {
     );
     
     // URL del frontend para restablecer contraseña
-    const resetUrl = `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`;
-    // Si estamos en desarrollo, usamos localhost:5173
-    const frontendUrl = process.env.NODE_ENV === 'production' 
-      ? resetUrl 
+    // Usamos la variable de entorno FRONTEND_URL para el enlace de producción
+    const frontendResetPageUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    
+    // Si estamos en desarrollo, podemos seguir usando localhost, si no, la URL de Vercel
+    const urlToSendInEmail = process.env.NODE_ENV === 'production' 
+      ? frontendResetPageUrl 
       : `http://localhost:5173/reset-password/${resetToken}`;
     
     // Enviar correo con enlace de restablecimiento - MODIFICADO: Sin personalización con nombre
@@ -180,7 +182,7 @@ exports.forgotPassword = async (req, res) => {
             <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta. Si no realizaste esta solicitud, puedes ignorar este correo.</p>
             <p>Para crear una nueva contraseña, haz clic en el siguiente enlace:</p>
             <div style="text-align: center; margin: 25px 0;">
-              <a href="${frontendUrl}" style="background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Restablecer contraseña</a>
+              <a href="${urlToSendInEmail}" style="background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Restablecer contraseña</a>
             </div>
             <p>Este enlace es válido por 1 hora. Después de ese tiempo, deberás solicitar un nuevo enlace de recuperación.</p>
           </div>
