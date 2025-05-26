@@ -14,7 +14,7 @@ const ReferralDetail = () => {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [statusNote, setStatusNote] = useState('');
-  const { isMedicalStaff } = useAuth();
+  const { isMedicalStaff, user } = useAuth();
 
   useEffect(() => {
     const fetchReferral = async () => {
@@ -134,7 +134,9 @@ const ReferralDetail = () => {
             Volver
           </button>
           
-          {isMedicalStaff && referral.status === 'Pendiente' && (
+          {/* Botones de Aceptar/Rechazar SOLO para el hospital de destino */}
+          {isMedicalStaff && referral.status === 'Pendiente' && 
+           referral.destination_hospital_id === user.hospital_id && (
             <>
               <button
                 onClick={() => handleStatusClick('Aceptada')}
@@ -158,7 +160,9 @@ const ReferralDetail = () => {
             </>
           )}
           
-          {isMedicalStaff && referral.status === 'Aceptada' && (
+          {/* Botón de Contrareferencia SOLO para el hospital de destino cuando está aceptada */}
+          {isMedicalStaff && referral.status === 'Aceptada' && 
+           referral.destination_hospital_id === user.hospital_id && (
             <Link
               to={`/crear-contrareferencia/${referral.id}`}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none"
