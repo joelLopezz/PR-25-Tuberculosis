@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 3000;
 // Si necesitas que funcione localmente mientras desarrollas, puedes añadir 'http://localhost:5173'
 // o el puerto que use tu frontend local (ej. Vite suele usar 5173, React por defecto 3000).
 const allowedOrigins = [
-    'https://tbs-frontend-vwfcl.vercel.app', // URL de tu frontend en Vercel
+    'https://tbs-frontend-virid.vercel.app', // URL de tu frontend en Vercel
     // 'http://localhost:5173' // Descomenta esta línea si necesitas probar localmente
 ];
 
