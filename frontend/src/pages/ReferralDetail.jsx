@@ -292,79 +292,77 @@ const ReferralDetail = () => {
       
       {/* Modal para cambiar estado */}
       {showStatusModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div 
-              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-              onClick={() => setShowStatusModal(false)}
-              aria-hidden="true"
-            ></div>
-            
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className={`mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full ${
-                    newStatus === 'Aceptada' ? 'bg-green-100' : 'bg-red-100'
-                  } sm:mx-0 sm:h-10 sm:w-10`}>
-                    {newStatus === 'Aceptada' ? (
-                      <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                      </svg>
-                    ) : (
-                      <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                      </svg>
-                    )}
-                  </div>
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      {newStatus === 'Aceptada' ? 'Aceptar' : 'Rechazar'} Referencia
-                    </h3>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        ¿Está seguro de que desea {newStatus === 'Aceptada' ? 'aceptar' : 'rechazar'} esta referencia?
-                      </p>
-                      
-                      <div className="mt-4">
-                        <label htmlFor="statusNote" className="block text-sm font-medium text-gray-700">
-                          Observaciones (opcional)
-                        </label>
-                        <textarea
-                          id="statusNote"
-                          name="statusNote"
-                          rows="3"
-                          className="shadow-sm focus:ring-teal-500 focus:border-teal-500 mt-1 block w-full sm:text-sm border border-gray-300 rounded-md"
-                          placeholder="Ingrese observaciones sobre esta decisión..."
-                          value={statusNote}
-                          onChange={(e) => setStatusNote(e.target.value)}
-                        ></textarea>
-                      </div>
+        <div className="fixed inset-0 z-[9999] overflow-y-auto flex items-center justify-center">
+          {/* Overlay de fondo */}
+          <div 
+            className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+            onClick={() => setShowStatusModal(false)}
+            aria-hidden="true"
+          ></div>
+          
+          {/* Modal centrado absolutamente */}
+          <div className="relative bg-white rounded-lg shadow-xl overflow-hidden w-full max-w-md mx-4 z-[10000] transform transition-all">
+            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+              <div className="sm:flex sm:items-start">
+                <div className={`mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full ${
+                  newStatus === 'Aceptada' ? 'bg-green-100' : 'bg-red-100'
+                } sm:mx-0 sm:h-10 sm:w-10`}>
+                  {newStatus === 'Aceptada' ? (
+                    <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                  ) : (
+                    <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                  )}
+                </div>
+                <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                    {newStatus === 'Aceptada' ? '¿Aceptar Referencia?' : '¿Rechazar Referencia?'}
+                  </h3>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                      ¿Está seguro de que desea {newStatus === 'Aceptada' ? 'aceptar' : 'rechazar'} esta referencia?
+                    </p>
+                    
+                    <div className="mt-4">
+                      <label htmlFor="statusNote" className="block text-sm font-medium text-gray-700">
+                        Observaciones (opcional)
+                      </label>
+                      <textarea
+                        id="statusNote"
+                        name="statusNote"
+                        rows="3"
+                        className="shadow-sm focus:ring-teal-500 focus:border-teal-500 mt-1 block w-full sm:text-sm border border-gray-300 rounded-md p-2"
+                        placeholder="Ingrese observaciones sobre esta decisión..."
+                        value={statusNote}
+                        onChange={(e) => setStatusNote(e.target.value)}
+                      ></textarea>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 ${
-                    newStatus === 'Aceptada' 
-                      ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' 
-                      : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
-                  } text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm`}
-                  onClick={handleStatusConfirm}
-                >
-                  Confirmar
-                </button>
-                <button
-                  type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => setShowStatusModal(false)}
-                >
-                  Cancelar
-                </button>
-              </div>
+            </div>
+            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              <button
+                type="button"
+                className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 ${
+                  newStatus === 'Aceptada' 
+                    ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' 
+                    : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
+                } text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-300`}
+                onClick={handleStatusConfirm}
+              >
+                {newStatus === 'Aceptada' ? 'Aceptar' : 'Rechazar'}
+              </button>
+              <button
+                type="button"
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-300"
+                onClick={() => setShowStatusModal(false)}
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
