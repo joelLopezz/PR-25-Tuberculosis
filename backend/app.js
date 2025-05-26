@@ -2,7 +2,7 @@
 require('dotenv').config(); // Carga variables del .env al inicio
 
 const express = require('express');
-const cors = require('cors'); // Ya está importado, lo usaremos de forma diferente
+const cors = require('cors');
 const app = express();
 
 // Conexión a la base de datos
@@ -15,37 +15,32 @@ const PORT = process.env.PORT || 3000;
 // ========================================================================
 
 // Define los orígenes permitidos para tu frontend
-// ¡IMPORTANTE!: Reemplaza 'https://tbs-frontend-vwfcl.vercel.app' con la URL EXACTA de tu frontend de Vercel.
-// Si necesitas que funcione localmente mientras desarrollas, puedes añadir 'http://localhost:5173'
-// o el puerto que use tu frontend local (ej. Vite suele usar 5173, React por defecto 3000).
 const allowedOrigins = [
-    'https://tbs-frontend-virid.vercel.app', // URL de tu frontend en Vercel
+    'https://tbs-frontend-virid.vercel.app', // <--- URL CORRECTA DE TU FRONTEND DE VERCEL
     // 'http://localhost:5173' // Descomenta esta línea si necesitas probar localmente
 ];
 
 const corsOptions = {
     origin: function (origin, callback) {
-        // Permitir solicitudes sin origen (como de herramientas como Postman o curl)
-        // o si el origen está en la lista de permitidos
         if (!origin || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
         }
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Métodos HTTP permitidos
-    allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos (importante para tokens de autenticación)
-    credentials: true // Permite el envío de cookies o credenciales (si tu app las usa)
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    // ¡IMPORTANTE! Añade 'x-auth-token' a los encabezados permitidos
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token'],
+    credentials: true
 };
 
-// Aplica el middleware de CORS con las opciones configuradas
 app.use(cors(corsOptions));
 
 // ========================================================================
 // === FIN DE LA SECCIÓN DE CONFIGURACIÓN DE CORS ===
 // ========================================================================
 
-app.use(express.json()); // Middleware para parsear JSON en las solicitudes
+app.use(express.json());
 
 // Importar rutas
 const hospitalRoutes = require('./routes/hospitalRoutes');
