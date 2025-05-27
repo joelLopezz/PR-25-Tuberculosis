@@ -79,9 +79,10 @@ exports.getAvailableHospitalsForReferral = async (req, res) => {
     // Crear array de IDs de hospitales visitados
     const visitedHospitalIds = visitedHospitals.map(h => h.hospital_id);
     
-    // Obtener todos los hospitales activos EXCLUYENDO los visitados
+    // ⭐ CORREGIDO: Especificar las columnas con sus alias para evitar ambigüedad
     let availableHospitalsQuery = `
-      SELECT id, name, address, phone, email, network_name, municipality_name
+      SELECT h.id, h.name, h.address, h.phone, h.email, 
+             n.name as network_name, m.name as municipality_name
       FROM hospitals h
       LEFT JOIN networks n ON h.network_id = n.id
       LEFT JOIN municipalities m ON h.municipality_id = m.id
