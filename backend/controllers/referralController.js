@@ -125,6 +125,18 @@ exports.createReferral = async (req, res) => {
       return res.status(403).json({ message: 'No tiene permiso para referir este paciente' });
     }
     
+    // ⭐ NUEVA VALIDACIÓN: Verificar si el paciente ya tiene una referencia pendiente
+    const [pendingReferrals] = await db.promise().query(
+      'SELECT id FROM referrals WHERE patient_id = ? AND status = "Pendiente" AND active_status = 1',
+      [patient_id]
+    );
+    
+    if (pendingReferrals.length > 0) {
+      return res.status(400).json({ 
+        message: 'El paciente ya tiene una referencia pendiente. No se puede crear otra referencia hasta que la actual sea procesada.' 
+      });
+    }
+    
     // Verificar que el hospital destino exista
     const [hospital] = await db.promise().query(
       'SELECT id FROM hospitals WHERE id = ? AND status = 1',

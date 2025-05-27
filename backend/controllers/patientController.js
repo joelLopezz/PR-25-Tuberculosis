@@ -261,6 +261,7 @@ exports.updatePatient = async (req, res) => {
 
 /**
  * Eliminar un paciente (eliminación lógica)
+ * ⭐ MODIFICADA: Ahora valida si el paciente tiene referencias antes de eliminar
  * @param {Request} req
  * @param {Response} res
  */
@@ -270,7 +271,7 @@ exports.deletePatient = async (req, res) => {
     
     // Verificar que el paciente exista
     const [patient] = await db.promise().query(
-      'SELECT hospital_id FROM patients WHERE id = ? AND status = 1',
+      'SELECT hospital_id, first_name, last_name FROM patients WHERE id = ? AND status = 1',
       [id]
     );
     
@@ -284,13 +285,67 @@ exports.deletePatient = async (req, res) => {
       return res.status(403).json({ message: 'No tiene permiso para eliminar este paciente' });
     }
     
-    // Eliminar lógicamente
-    await db.promise().query(
-      'UPDATE patients SET status = 0 WHERE id = ?',
+    // ⭐ NUEVA VALIDACIÓN: Verificar si el paciente tiene referencias existentes
+    const [references] = await db.promise().query(
+      `SELECT COUNT(*) as reference_count, 
+              SUM(CASE WHEN status = 'Pendiente' THEN 1 ELSE 0 END) as pending_count,
+              SUM(CASE WHEN status = 'Aceptada' THEN 1 ELSE 0 END) as accepted_count,
+              SUM(CASE WHEN status = 'Completada' THEN 1 ELSE 0 END) as completed_count,
+              SUM(CASE WHEN status = 'Rechazada' THEN 1 ELSE 0 END) as rejected_count
+       FROM referrals 
+       WHERE patient_id = ? AND active_status = 1`,
       [id]
     );
     
-    res.json({ message: 'Paciente eliminado exitosamente' });
+    const totalReferences = references[0].reference_count;
+    
+    if (totalReferences > 0) {
+      // Construir mensaje detallado sobre las referencias existentes
+      const refDetails = [];
+      if (references[0].pending_count > 0) refDetails.push(`${references[0].pending_count} pendiente(s)`);
+      if (references[0].accepted_count > 0) refDetails.push(`${references[0].accepted_count} aceptada(s)`);
+      if (references[0].completed_count > 0) refDetails.push(`${references[0].completed_count} completada(s)`);
+      if (references[0].rejected_count > 0) refDetails.push(`${references[0].rejected_count} rechazada(s)`);
+      
+      return res.status(409).json({ 
+        message: `No se puede eliminar al paciente ${patient[0].first_name} ${patient[0].last_name} porque tiene ${totalReferences} referencia(s) existente(s): ${refDetails.join(', ')}. Para eliminar este paciente, primero debe gestionar o eliminar todas sus referencias.`,
+        hasReferences: true,
+        referenceDetails: {
+          total: totalReferences,
+          pending: references[0].pending_count,
+          accepted: references[0].accepted_count,
+          completed: references[0].completed_count,
+          rejected: references[0].rejected_count
+        }
+      });
+    }
+    
+    // ⭐ VALIDACIÓN ADICIONAL: Verificar si tiene contrareferencias
+    const [counterReferences] = await db.promise().query(
+      `SELECT COUNT(*) as counter_reference_count
+       FROM counter_references cr
+       JOIN referrals r ON cr.referral_id = r.id
+       WHERE r.patient_id = ? AND cr.status = 1`,
+      [id]
+    );
+    
+    if (counterReferences[0].counter_reference_count > 0) {
+      return res.status(409).json({ 
+        message: `No se puede eliminar al paciente ${patient[0].first_name} ${patient[0].last_name} porque tiene ${counterReferences[0].counter_reference_count} contrareferencia(s) asociada(s). Para eliminar este paciente, primero debe gestionar todas sus contrareferencias.`,
+        hasCounterReferences: true,
+        counterReferenceCount: counterReferences[0].counter_reference_count
+      });
+    }
+    
+    // Si llegamos aquí, el paciente no tiene referencias ni contrareferencias, proceder con la eliminación lógica
+    await db.promise().query(
+      'UPDATE patients SET status = 0, updated_at = NOW() WHERE id = ?',
+      [id]
+    );
+    
+    res.json({ 
+      message: `Paciente ${patient[0].first_name} ${patient[0].last_name} eliminado exitosamente` 
+    });
   } catch (error) {
     console.error('Error al eliminar paciente:', error);
     res.status(500).json({ message: 'Error en el servidor' });
