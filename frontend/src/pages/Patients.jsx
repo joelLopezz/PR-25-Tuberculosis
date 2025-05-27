@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getAllPatients, deletePatient } from '../services/patientService';
-import { getAllReferrals } from '../services/referralService'; // ⭐ AGREGAR ESTA IMPORTACIÓN
+import { getAllReferrals } from '../services/referralService';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 const Patients = () => {
@@ -13,24 +13,22 @@ const Patients = () => {
   const [error, setError] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState(null);
+  // ⭐ NUEVO ESTADO para manejar errores específicos de eliminación
+  const [deleteError, setDeleteError] = useState(null);
   const navigate = useNavigate();
 
-  // ⭐ MODIFICAR ESTE useEffect - Cargar pacientes y referencias
   useEffect(() => {
     fetchPatientsWithReferralStatus();
   }, []);
 
-  // ⭐ NUEVA FUNCIÓN - Cargar pacientes con estado de referencias
   const fetchPatientsWithReferralStatus = async () => {
     try {
       setLoading(true);
-      // Cargar pacientes y referencias al mismo tiempo
       const [patientsData, referralsData] = await Promise.all([
         getAllPatients(),
         getAllReferrals()
       ]);
       
-      // Crear un mapa de pacientes con referencias pendientes
       const patientsWithPendingReferrals = referralsData
         .filter(referral => referral.status === 'Pendiente')
         .reduce((acc, referral) => {
@@ -38,7 +36,6 @@ const Patients = () => {
           return acc;
         }, {});
       
-      // Agregar información de referencia pendiente a cada paciente
       const patientsWithReferralInfo = patientsData.map(patient => ({
         ...patient,
         hasPendingReferral: !!patientsWithPendingReferrals[patient.id],
@@ -55,32 +52,58 @@ const Patients = () => {
     }
   };
 
-  // ⭐ MODIFICAR ESTA FUNCIÓN - Recargar con estado de referencias
   const fetchPatients = async () => {
     await fetchPatientsWithReferralStatus();
   };
 
-  // Abrir modal de confirmación para eliminar
   const handleDeleteClick = (patient) => {
     setPatientToDelete(patient);
+    setDeleteError(null); // ⭐ Limpiar errores previos
     setShowDeleteModal(true);
   };
 
-  // Confirmar y ejecutar eliminación
+  // ⭐ MODIFICADA: Manejo mejorado de errores de eliminación
   const handleDeleteConfirm = async () => {
     if (!patientToDelete) return;
     
     try {
       await deletePatient(patientToDelete.id);
       toast.success(`Paciente ${patientToDelete.first_name} ${patientToDelete.last_name} eliminado correctamente`);
-      fetchPatients(); // Recargar la lista
+      fetchPatients();
       setShowDeleteModal(false);
+      setDeleteError(null);
     } catch (err) {
-      toast.error(err.message || 'Error al eliminar paciente');
+      console.error('Error al eliminar paciente:', err);
+      
+      // ⭐ NUEVO: Manejo específico para errores 409 (Conflict) - paciente con referencias
+      if (err.status === 409 || (err.response && err.response.status === 409)) {
+        const errorData = err.response?.data || err;
+        setDeleteError({
+          type: 'references',
+          message: errorData.message,
+          details: errorData.referenceDetails || null,
+          hasReferences: errorData.hasReferences || false,
+          hasCounterReferences: errorData.hasCounterReferences || false,
+          counterReferenceCount: errorData.counterReferenceCount || 0
+        });
+      } else {
+        // Error genérico
+        setDeleteError({
+          type: 'generic',
+          message: err.message || 'Error al eliminar paciente'
+        });
+        toast.error(err.message || 'Error al eliminar paciente');
+      }
     }
   };
 
-  // Renderizado de tabla de pacientes
+  // ⭐ NUEVA FUNCIÓN: Cerrar modal y limpiar errores
+  const handleCloseModal = () => {
+    setShowDeleteModal(false);
+    setDeleteError(null);
+    setPatientToDelete(null);
+  };
+
   const renderPatientsTable = () => {
     if (patients.length === 0) {
       return (
@@ -104,14 +127,12 @@ const Patients = () => {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Edad</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Género</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hospital</th>
-              {/* ⭐ AGREGAR NUEVA COLUMNA */}
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
               <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {patients.map((patient) => {
-              // Calcular edad basada en fecha de nacimiento
               const birthDate = new Date(patient.birthdate);
               const today = new Date();
               let age = today.getFullYear() - birthDate.getFullYear();
@@ -155,7 +176,6 @@ const Patients = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {patient.hospital_name}
                   </td>
-                  {/* ⭐ NUEVA CELDA - Estado de referencia */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {patient.hasPendingReferral ? (
                       <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
@@ -195,7 +215,6 @@ const Patients = () => {
                         </svg>
                       </Link>
                       
-                      {/* ⭐ MODIFICAR BOTÓN CREAR REFERENCIA - Condicional */}
                       {patient.hasPendingReferral ? (
                         <div className="relative">
                           <button
@@ -207,7 +226,6 @@ const Patients = () => {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                             </svg>
                           </button>
-                          {/* Badge de referencia pendiente */}
                           <span className="absolute -top-1 -right-1 h-3 w-3 bg-yellow-400 rounded-full flex items-center justify-center">
                             <span className="text-xs text-white font-bold">!</span>
                           </span>
@@ -282,13 +300,118 @@ const Patients = () => {
         renderPatientsTable()
       )}
       
-      <DeleteConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleDeleteConfirm}
-        itemName={patientToDelete ? `${patientToDelete.first_name} ${patientToDelete.last_name}` : ''}
-        itemType="paciente"
-      />
+      {/* ⭐ MODAL MEJORADO: Ahora muestra información detallada sobre referencias */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center">
+          <div 
+            className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+            onClick={handleCloseModal}
+            aria-hidden="true"
+          ></div>
+          
+          <div className="bg-white rounded-lg shadow-xl overflow-hidden w-full max-w-lg z-10 transform transition-all mx-4">
+            {!deleteError ? (
+              // Modal normal de confirmación
+              <>
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                      <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                      </svg>
+                    </div>
+                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">Confirmar eliminación</h3>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500">
+                          ¿Está seguro de que desea eliminar al paciente "{patientToDelete?.first_name} {patientToDelete?.last_name}"? Esta acción no se puede deshacer.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <button 
+                    type="button" 
+                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-300"
+                    onClick={handleDeleteConfirm}
+                  >
+                    Eliminar
+                  </button>
+                  <button 
+                    type="button" 
+                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-300"
+                    onClick={handleCloseModal}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            ) : (
+              // Modal de error con información detallada
+              <>
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
+                      <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                      </svg>
+                    </div>
+                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">No se puede eliminar el paciente</h3>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-700 mb-3">
+                          {deleteError.message}
+                        </p>
+                        
+                        {deleteError.type === 'references' && deleteError.details && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                            <h4 className="text-sm font-medium text-yellow-800 mb-2">Detalle de referencias:</h4>
+                            <ul className="text-xs text-yellow-700 space-y-1">
+                              {deleteError.details.pending > 0 && (
+                                <li>• {deleteError.details.pending} referencia(s) pendiente(s)</li>
+                              )}
+                              {deleteError.details.accepted > 0 && (
+                                <li>• {deleteError.details.accepted} referencia(s) aceptada(s)</li>
+                              )}
+                              {deleteError.details.completed > 0 && (
+                                <li>• {deleteError.details.completed} referencia(s) completada(s)</li>
+                              )}
+                              {deleteError.details.rejected > 0 && (
+                                <li>• {deleteError.details.rejected} referencia(s) rechazada(s)</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        <div className="mt-3 text-xs text-gray-500">
+                          <p><strong>Sugerencia:</strong> Para eliminar este paciente, primero gestione o elimine todas sus referencias a través del módulo de Referencias.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <Link
+                    to="/referencias"
+                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-300"
+                    onClick={handleCloseModal}
+                  >
+                    Ver Referencias
+                  </Link>
+                  <button 
+                    type="button" 
+                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-300"
+                    onClick={handleCloseModal}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

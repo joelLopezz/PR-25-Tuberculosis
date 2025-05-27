@@ -43,12 +43,27 @@ export const updatePatient = async (id, patientData) => {
   }
 };
 
-// Eliminar un paciente
+// ⭐ MODIFICADA: Eliminar un paciente con mejor manejo de errores
 export const deletePatient = async (id) => {
   try {
     const response = await axios.delete(`${API_URL}/patients/${id}`);
     return response.data;
   } catch (error) {
-    throw error.response?.data || { message: 'Error al eliminar paciente' };
+    // ⭐ MEJORADO: Preservar información completa del error incluyendo status
+    const errorInfo = {
+      message: error.response?.data?.message || 'Error al eliminar paciente',
+      status: error.response?.status,
+      response: error.response
+    };
+    
+    // ⭐ NUEVO: Para errores 409 (Conflict), preservar toda la información adicional
+    if (error.response?.status === 409) {
+      errorInfo.hasReferences = error.response.data.hasReferences;
+      errorInfo.referenceDetails = error.response.data.referenceDetails;
+      errorInfo.hasCounterReferences = error.response.data.hasCounterReferences;
+      errorInfo.counterReferenceCount = error.response.data.counterReferenceCount;
+    }
+    
+    throw errorInfo;
   }
 };
