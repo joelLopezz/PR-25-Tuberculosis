@@ -14,11 +14,7 @@ const pool = mysql.createPool({
   connectionLimit: 10,             
   queueLimit: 0,                   
   
-  // ⭐ CAMBIO AQUÍ: Deshabilitar SSL explícitamente
-  // El error "HANDSHAKE_NO_SSL_SUPPORT" sugiere que el servidor de tu base de datos no soporta SSL.
-  // Si tu proveedor de BD confirma que sí soporta SSL y este cambio falla,
-  // podríamos necesitar una configuración SSL más específica o certificados.
-  // Pero para este error, deshabilitarlo es la primera prueba.
+  // ⭐ CAMBIO AQUÍ: Deshabilitar SSL explícitamente (ya lo tenías así, solo para confirmar)
   ssl: false, 
   
   // ⭐ CONFIGURACIONES ADICIONALES VÁLIDAS
@@ -45,9 +41,10 @@ pool.on('error', function(err) {
 // ⭐ FUNCIÓN PARA PROBAR LA CONEXIÓN
 const testConnection = async () => {
   try {
-    const [rows] = await pool.promise().query('SELECT 1 as test, NOW() as current_time');
+    // ⭐⭐ CAMBIO CLAVE AQUÍ: Usamos una consulta simple 'SELECT 1' para verificar la conexión
+    const [rows] = await pool.promise().query('SELECT 1');
     console.log('✅ Conexión a la base de datos MySQL exitosa');
-    console.log('🕐 Hora del servidor:', rows[0].current_time);
+    // Ya no necesitamos la hora del servidor para la prueba básica de conexión
     return true;
   } catch (error) {
     console.error('❌ Error al conectar a la base de datos:', error.message);
