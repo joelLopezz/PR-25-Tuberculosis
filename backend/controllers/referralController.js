@@ -2,6 +2,124 @@
 const db = require("../config/db");
 
 /**
+ * ⭐ NUEVA FUNCIÓN: Obtener historial de hospitales de un paciente
+ * @param {Request} req
+ * @param {Response} res
+ */
+exports.getPatientHospitalHistory = async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    
+    // Obtener todos los hospitales donde ha estado el paciente
+    const [hospitalHistory] = await db.promise().query(`
+      SELECT DISTINCT h.id, h.name, 'origen' as tipo
+      FROM referrals r
+      JOIN hospitals h ON r.source_hospital_id = h.id
+      WHERE r.patient_id = ? AND r.status IN ('Aceptada', 'Completada') AND r.active_status = 1
+      
+      UNION
+      
+      SELECT DISTINCT h.id, h.name, 'destino' as tipo
+      FROM referrals r
+      JOIN hospitals h ON r.destination_hospital_id = h.id
+      WHERE r.patient_id = ? AND r.status IN ('Aceptada', 'Completada') AND r.active_status = 1
+      
+      UNION
+      
+      SELECT DISTINCT h.id, h.name, 'actual' as tipo
+      FROM patients p
+      JOIN hospitals h ON p.hospital_id = h.id
+      WHERE p.id = ? AND p.status = 1
+      
+      ORDER BY name
+    `, [patientId, patientId, patientId]);
+    
+    res.json({
+      patientId: parseInt(patientId),
+      hospitalHistory: hospitalHistory,
+      message: `Historial encontrado: ${hospitalHistory.length} hospitales`
+    });
+  } catch (error) {
+    console.error('Error al obtener historial de hospitales:', error);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+};
+
+/**
+ * ⭐ NUEVA FUNCIÓN: Obtener hospitales disponibles para referencia (excluyendo historial)
+ * @param {Request} req
+ * @param {Response} res
+ */
+exports.getAvailableHospitalsForReferral = async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    
+    // Primero, obtener todos los hospitales donde ya ha estado el paciente
+    const [visitedHospitals] = await db.promise().query(`
+      SELECT DISTINCT hospital_id
+      FROM (
+        SELECT source_hospital_id as hospital_id
+        FROM referrals 
+        WHERE patient_id = ? AND status IN ('Aceptada', 'Completada') AND active_status = 1
+        
+        UNION
+        
+        SELECT destination_hospital_id as hospital_id
+        FROM referrals 
+        WHERE patient_id = ? AND status IN ('Aceptada', 'Completada') AND active_status = 1
+        
+        UNION
+        
+        SELECT hospital_id
+        FROM patients 
+        WHERE id = ? AND status = 1
+      ) as visited_hospitals
+    `, [patientId, patientId, patientId]);
+    
+    // Crear array de IDs de hospitales visitados
+    const visitedHospitalIds = visitedHospitals.map(h => h.hospital_id);
+    
+    // Obtener todos los hospitales activos EXCLUYENDO los visitados
+    let availableHospitalsQuery = `
+      SELECT id, name, address, phone, email, network_name, municipality_name
+      FROM hospitals h
+      LEFT JOIN networks n ON h.network_id = n.id
+      LEFT JOIN municipalities m ON h.municipality_id = m.id
+      WHERE h.status = 1
+    `;
+    
+    const queryParams = [];
+    
+    // Si hay hospitales visitados, excluirlos
+    if (visitedHospitalIds.length > 0) {
+      const placeholders = visitedHospitalIds.map(() => '?').join(',');
+      availableHospitalsQuery += ` AND h.id NOT IN (${placeholders})`;
+      queryParams.push(...visitedHospitalIds);
+    }
+    
+    // Filtrar por hospital del usuario si no es admin
+    if (!['admin', 'sedes_admin'].includes(req.user.role)) {
+      availableHospitalsQuery += ` AND h.id != ?`;
+      queryParams.push(req.user.hospital_id);
+    }
+    
+    availableHospitalsQuery += ` ORDER BY h.name`;
+    
+    const [availableHospitals] = await db.promise().query(availableHospitalsQuery, queryParams);
+    
+    res.json({
+      patientId: parseInt(patientId),
+      availableHospitals: availableHospitals,
+      visitedHospitalIds: visitedHospitalIds,
+      message: `${availableHospitals.length} hospitales disponibles para referencia`
+    });
+  } catch (error) {
+    console.error('Error al obtener hospitales disponibles:', error);
+    res.status(500).json({ message: 'Error en el servidor' });
+  }
+};
+
+/**
  * Obtener todas las referencias
  * @param {Request} req
  * @param {Response} res
@@ -85,7 +203,7 @@ exports.getReferralById = async (req, res) => {
 };
 
 /**
- * Crear una nueva referencia
+ * ⭐ MODIFICADA: Crear una nueva referencia con validación de historial
  * @param {Request} req
  * @param {Response} res
  */
@@ -125,7 +243,7 @@ exports.createReferral = async (req, res) => {
       return res.status(403).json({ message: 'No tiene permiso para referir este paciente' });
     }
     
-    // ⭐ NUEVA VALIDACIÓN: Verificar si el paciente ya tiene una referencia pendiente
+    // Verificar si el paciente ya tiene una referencia pendiente
     const [pendingReferrals] = await db.promise().query(
       'SELECT id FROM referrals WHERE patient_id = ? AND status = "Pendiente" AND active_status = 1',
       [patient_id]
@@ -134,6 +252,43 @@ exports.createReferral = async (req, res) => {
     if (pendingReferrals.length > 0) {
       return res.status(400).json({ 
         message: 'El paciente ya tiene una referencia pendiente. No se puede crear otra referencia hasta que la actual sea procesada.' 
+      });
+    }
+    
+    // ⭐ NUEVA VALIDACIÓN: Verificar que el hospital destino no esté en el historial del paciente
+    const [visitedHospitals] = await db.promise().query(`
+      SELECT DISTINCT hospital_id
+      FROM (
+        SELECT source_hospital_id as hospital_id
+        FROM referrals 
+        WHERE patient_id = ? AND status IN ('Aceptada', 'Completada') AND active_status = 1
+        
+        UNION
+        
+        SELECT destination_hospital_id as hospital_id
+        FROM referrals 
+        WHERE patient_id = ? AND status IN ('Aceptada', 'Completada') AND active_status = 1
+        
+        UNION
+        
+        SELECT hospital_id
+        FROM patients 
+        WHERE id = ? AND status = 1
+      ) as visited_hospitals
+    `, [patient_id, patient_id, patient_id]);
+    
+    const visitedHospitalIds = visitedHospitals.map(h => h.hospital_id);
+    
+    if (visitedHospitalIds.includes(parseInt(destination_hospital_id))) {
+      // Obtener nombre del hospital para mensaje más claro
+      const [hospitalInfo] = await db.promise().query(
+        'SELECT name FROM hospitals WHERE id = ?',
+        [destination_hospital_id]
+      );
+      
+      return res.status(400).json({ 
+        message: `No se puede referir al hospital "${hospitalInfo[0]?.name || 'seleccionado'}" porque el paciente ya estuvo allí anteriormente. Seleccione un hospital diferente.`,
+        visitedHospitalIds: visitedHospitalIds
       });
     }
     
@@ -147,12 +302,7 @@ exports.createReferral = async (req, res) => {
       return res.status(404).json({ message: 'Hospital destino no encontrado' });
     }
     
-    // No permitir referencia al mismo hospital
-    if (patient[0].hospital_id === parseInt(destination_hospital_id)) {
-      return res.status(400).json({ message: 'No se puede referir al mismo hospital' });
-    }
-    
-    // Obtener el ID del staff que hace la referencia (es el usuario autenticado)
+    // Obtener el ID del staff que hace la referencia
     const [staff] = await db.promise().query(
       'SELECT id FROM staff WHERE user_id = ? AND status = 1',
       [req.user.id]
@@ -197,8 +347,6 @@ exports.createReferral = async (req, res) => {
  * @param {Request} req
  * @param {Response} res
  */
-// Modifica la función updateReferralStatus en controllers/referralController.js
-
 exports.updateReferralStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -209,7 +357,7 @@ exports.updateReferralStatus = async (req, res) => {
       return res.status(400).json({ message: 'Estado no válido' });
     }
     
-    // Verificar que la referencia exista - MODIFICADO: ahora incluye el campo status
+    // Verificar que la referencia exista
     const [referral] = await db.promise().query(
       'SELECT source_hospital_id, destination_hospital_id, patient_id, status FROM referrals WHERE id = ? AND active_status = 1',
       [id]
@@ -225,7 +373,6 @@ exports.updateReferralStatus = async (req, res) => {
       return res.status(403).json({ message: 'No tiene permiso para actualizar esta referencia' });
     }
 
-    // MODIFICADO: Ahora verifica el campo status (que sí existe) en lugar de current_status
     // Verificar que no se esté cambiando de un estado final a otro
     if (referral[0].status !== 'Pendiente') {
       return res.status(400).json({ message: 'No se puede cambiar el estado de una referencia que ya no está pendiente' });
@@ -238,8 +385,6 @@ exports.updateReferralStatus = async (req, res) => {
         [referral[0].destination_hospital_id, referral[0].patient_id]
       );
     }
-    
-    // ELIMINADOS: los comandos de transacción innecesarios (COMMIT)
     
     // Actualizar el estado
     await db.promise().query(

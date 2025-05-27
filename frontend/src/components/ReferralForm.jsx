@@ -4,20 +4,24 @@ import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
 import { useNavigate } from 'react-router-dom';
-import { getAllHospitals } from '../services/hospitalService';
 import { getPatientById } from '../services/patientService';
-import { checkPatientPendingReferrals } from '../services/referralService'; // ⭐ AGREGAR ESTA IMPORTACIÓN
+import { 
+  checkPatientPendingReferrals,
+  getAvailableHospitalsForReferral,
+  getPatientHospitalHistory 
+} from '../services/referralService';
 import { useAuth } from '../context/AuthContext';
 import PatientSearchField from './PatientSearchField';
 
 const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [hospitals, setHospitals] = useState([]);
-  const [filteredHospitals, setFilteredHospitals] = useState([]);
+  const [availableHospitals, setAvailableHospitals] = useState([]); // ⭐ Cambiado de hospitals
+  const [hospitalHistory, setHospitalHistory] = useState([]); // ⭐ Nuevo estado
   const [patient, setPatient] = useState(null);
   const [loadingPatient, setLoadingPatient] = useState(false);
-  const [pendingReferralError, setPendingReferralError] = useState(''); // ⭐ AGREGAR ESTE ESTADO
+  const [pendingReferralError, setPendingReferralError] = useState('');
+  const [noHospitalsAvailable, setNoHospitalsAvailable] = useState(false); // ⭐ Nuevo estado
   const { user } = useAuth();
 
   // Esquema de validación
@@ -57,73 +61,89 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
     notes: '',
   };
 
-  // Cargar hospitales y datos del paciente al montar el componente
+  // ⭐ NUEVA FUNCIÓN: Cargar hospitales disponibles y historial
+  const loadPatientHospitalData = async (selectedPatientId) => {
+    if (!selectedPatientId) {
+      setAvailableHospitals([]);
+      setHospitalHistory([]);
+      setNoHospitalsAvailable(false);
+      return;
+    }
+
+    try {
+      setLoadingPatient(true);
+      
+      // Cargar en paralelo: hospitales disponibles e historial
+      const [availableData, historyData] = await Promise.all([
+        getAvailableHospitalsForReferral(selectedPatientId),
+        getPatientHospitalHistory(selectedPatientId)
+      ]);
+      
+      setAvailableHospitals(availableData.availableHospitals || []);
+      setHospitalHistory(historyData.hospitalHistory || []);
+      setNoHospitalsAvailable(availableData.availableHospitals.length === 0);
+      
+      console.log('Hospitales disponibles:', availableData.availableHospitals.length);
+      console.log('Historial:', historyData.hospitalHistory.length);
+      
+    } catch (error) {
+      console.error("Error al cargar datos de hospitalización:", error);
+      setAvailableHospitals([]);
+      setHospitalHistory([]);
+      setNoHospitalsAvailable(true);
+    } finally {
+      setLoadingPatient(false);
+    }
+  };
+
+  // Cargar datos del paciente al montar el componente
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        const hospitalsData = await getAllHospitals();
-        setHospitals(hospitalsData);
-        
-        if (patientId) {
-          setLoadingPatient(true);
+      if (patientId) {
+        setLoadingPatient(true);
+        try {
           const patientData = await getPatientById(patientId);
           setPatient(patientData);
           
-          const filtered = hospitalsData.filter(hospital => {
-            const hospitalId = typeof hospital.id === 'string' ? parseInt(hospital.id, 10) : hospital.id;
-            const patientHospitalId = typeof patientData.hospital_id === 'string' ? 
-              parseInt(patientData.hospital_id, 10) : patientData.hospital_id;
-            
-            return hospitalId !== patientHospitalId;
-          });
-          
-          setFilteredHospitals(filtered);
-        } else {
-          setFilteredHospitals(hospitalsData);
+          // Cargar hospitales disponibles para este paciente
+          await loadPatientHospitalData(patientId);
+        } catch (error) {
+          console.error("Error al cargar datos del paciente:", error);
+        } finally {
+          setLoadingPatient(false);
         }
-      } catch (error) {
-        console.error("Error al cargar datos:", error);
-      } finally {
-        setLoadingPatient(false);
       }
     };
     
     fetchData();
   }, [patientId]);
 
-  // Actualizar datos del paciente cuando cambia el ID
-  const handlePatientChange = async (formikProps, patientId) => {
-    if (!patientId) {
+  // ⭐ MODIFICADA: Manejar cambio de paciente
+  const handlePatientChange = async (formikProps, selectedPatientId) => {
+    if (!selectedPatientId) {
       setPatient(null);
-      setPendingReferralError(''); // ⭐ LIMPIAR ERROR AL CAMBIAR PACIENTE
+      setPendingReferralError('');
+      setAvailableHospitals([]);
+      setHospitalHistory([]);
+      setNoHospitalsAvailable(false);
       return;
     }
 
     try {
       setLoadingPatient(true);
-      setPendingReferralError(''); // ⭐ LIMPIAR ERROR AL CAMBIAR PACIENTE
+      setPendingReferralError('');
       
-      const patientData = await getPatientById(patientId);
+      const patientData = await getPatientById(selectedPatientId);
       setPatient(patientData);
       
-      if (hospitals.length > 0) {
-        const filtered = hospitals.filter(hospital => {
-          const hospitalId = typeof hospital.id === 'string' ? parseInt(hospital.id, 10) : hospital.id;
-          const patientHospitalId = typeof patientData.hospital_id === 'string' ? 
-            parseInt(patientData.hospital_id, 10) : patientData.hospital_id;
-          
-          return hospitalId !== patientHospitalId;
-        });
-        
-        setFilteredHospitals(filtered);
-        
-        if (formikProps.values.destination_hospital_id) {
-          const destHospitalId = parseInt(formikProps.values.destination_hospital_id, 10);
-          if (destHospitalId === patientData.hospital_id) {
-            formikProps.setFieldValue('destination_hospital_id', '');
-          }
-        }
+      // Cargar hospitales disponibles para este paciente
+      await loadPatientHospitalData(selectedPatientId);
+      
+      // Limpiar hospital de destino seleccionado porque la lista cambió
+      if (formikProps.values.destination_hospital_id) {
+        formikProps.setFieldValue('destination_hospital_id', '');
       }
+      
     } catch (error) {
       console.error("Error al cargar datos del paciente:", error);
     } finally {
@@ -131,13 +151,13 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
     }
   };
 
-  // ⭐ MODIFICAR ESTA FUNCIÓN - Agregar validación de referencias pendientes
+  // Manejar envío del formulario
   const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
     try {
       setLoading(true);
-      setPendingReferralError(''); // Limpiar errores previos
+      setPendingReferralError('');
       
-      // ⭐ NUEVA VALIDACIÓN: verificar referencias pendientes antes de enviar
+      // Verificar referencias pendientes antes de enviar
       if (values.patient_id) {
         const hasPendingReferral = await checkPatientPendingReferrals(values.patient_id);
         if (hasPendingReferral) {
@@ -150,8 +170,12 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
       await onSubmit(values);
     } catch (error) {
       console.error('Error en el formulario:', error);
-      // Si el error viene del backend sobre referencia pendiente, mostrarlo
-      if (error.message && error.message.includes('referencia pendiente')) {
+      
+      // Manejar errores específicos del historial
+      if (error.message && error.message.includes('ya estuvo allí')) {
+        setPendingReferralError(error.message);
+        setFieldError('destination_hospital_id', 'Hospital no disponible');
+      } else if (error.message && error.message.includes('referencia pendiente')) {
         setPendingReferralError(error.message);
         setFieldError('patient_id', 'Paciente con referencia pendiente');
       }
@@ -183,7 +207,7 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
         >
           {(formikProps) => (
             <Form className="p-6 space-y-4">
-              {/* ⭐ AGREGAR MENSAJE DE ERROR DE REFERENCIA PENDIENTE */}
+              {/* Mensaje de error general */}
               {pendingReferralError && (
                 <div className="col-span-2 bg-red-50 border border-red-200 rounded-md p-3 mb-4">
                   <div className="flex">
@@ -200,6 +224,54 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
                         <p>{pendingReferralError}</p>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ⭐ NUEVO: Mensaje si no hay hospitales disponibles */}
+              {noHospitalsAvailable && patient && (
+                <div className="col-span-2 bg-orange-50 border border-orange-200 rounded-md p-3 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-orange-800">
+                        Sin hospitales disponibles
+                      </h3>
+                      <div className="mt-2 text-sm text-orange-700">
+                        <p>Este paciente ya ha estado en todos los hospitales disponibles del sistema. No se pueden crear más referencias.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ⭐ NUEVO: Mostrar historial de hospitales */}
+              {hospitalHistory.length > 0 && (
+                <div className="bg-blue-50 p-4 rounded-md mb-4">
+                  <h3 className="text-md font-semibold text-blue-800 mb-2">📍 Historial de Hospitales</h3>
+                  <div className="text-sm text-blue-700">
+                    <p className="mb-2">Hospitales donde ha estado este paciente:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {hospitalHistory.map((hospital, index) => (
+                        <span 
+                          key={hospital.id} 
+                          className={`px-2 py-1 rounded-full text-xs ${
+                            hospital.tipo === 'actual' 
+                              ? 'bg-green-100 text-green-800 font-semibold' 
+                              : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {hospital.name} {hospital.tipo === 'actual' && '(Actual)'}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs italic">
+                      ℹ️ Solo se mostrarán hospitales donde el paciente NO ha estado antes.
+                    </p>
                   </div>
                 </div>
               )}
@@ -230,7 +302,7 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
               )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Paciente - Reemplazado con el buscador inteligente */}
+                {/* Paciente - Solo si no viene pre-seleccionado */}
                 {!patientId && (
                   <div>
                     <PatientSearchField
@@ -238,11 +310,12 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
                       label="Paciente"
                       placeholder="Buscar paciente por nombre o CI..."
                       required={true}
+                      onPatientChange={(patientId) => handlePatientChange(formikProps, patientId)}
                     />
                   </div>
                 )}
                 
-                {/* Hospital de destino */}
+                {/* ⭐ MODIFICADO: Hospital de destino */}
                 <div>
                   <label htmlFor="destination_hospital_id" className="block text-sm font-medium text-gray-700 mb-1">
                     Hospital de destino <span className="text-red-600">*</span>
@@ -252,25 +325,26 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
                     name="destination_hospital_id"
                     id="destination_hospital_id"
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                    disabled={noHospitalsAvailable}
                   >
-                    <option value="">Seleccionar hospital</option>
-                    {filteredHospitals.map(hospital => {
-                      const hospitalId = typeof hospital.id === 'string' ? parseInt(hospital.id, 10) : hospital.id;
-                      const userHospitalId = user?.hospital_id ? 
-                        (typeof user.hospital_id === 'string' ? parseInt(user.hospital_id, 10) : user.hospital_id) : null;
-                      
-                      if (userHospitalId && hospitalId === userHospitalId) {
-                        return null;
-                      }
-                      
-                      return (
-                        <option key={hospital.id} value={hospital.id}>
-                          {hospital.name}
-                        </option>
-                      );
-                    })}
+                    <option value="">
+                      {noHospitalsAvailable 
+                        ? "No hay hospitales disponibles" 
+                        : "Seleccionar hospital"}
+                    </option>
+                    {availableHospitals.map(hospital => (
+                      <option key={hospital.id} value={hospital.id}>
+                        {hospital.name}
+                        {hospital.network_name && ` - ${hospital.network_name}`}
+                      </option>
+                    ))}
                   </Field>
                   <ErrorMessage name="destination_hospital_id" component="div" className="mt-1 text-sm text-red-600" />
+                  {availableHospitals.length > 0 && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      ✅ {availableHospitals.length} hospital(es) disponible(s) para referencia
+                    </p>
+                  )}
                 </div>
                 
                 {/* Fecha de referencia */}
@@ -377,7 +451,7 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
                 </button>
                 <button
                   type="submit"
-                  disabled={formikProps.isSubmitting || loading || !!pendingReferralError} // ⭐ DESHABILITAR SI HAY ERROR
+                  disabled={formikProps.isSubmitting || loading || !!pendingReferralError || noHospitalsAvailable}
                   className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none disabled:opacity-50"
                 >
                   {loading ? (

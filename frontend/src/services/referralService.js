@@ -13,6 +13,26 @@ export const getAllReferrals = async () => {
   }
 };
 
+// ⭐ NUEVA FUNCIÓN: Obtener historial de hospitales de un paciente
+export const getPatientHospitalHistory = async (patientId) => {
+  try {
+    const response = await axios.get(`${API_URL}/referrals/patient/${patientId}/hospital-history`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'Error al obtener historial de hospitales' };
+  }
+};
+
+// ⭐ NUEVA FUNCIÓN: Obtener hospitales disponibles para referencia (excluyendo historial)
+export const getAvailableHospitalsForReferral = async (patientId) => {
+  try {
+    const response = await axios.get(`${API_URL}/referrals/patient/${patientId}/available-hospitals`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'Error al obtener hospitales disponibles' };
+  }
+};
+
 // Obtener una referencia por ID
 export const getReferralById = async (id) => {
   try {
@@ -53,7 +73,7 @@ export const deleteReferral = async (id) => {
   }
 };
 
-// NUEVA FUNCIÓN: Verificar si un paciente tiene referencias pendientes
+// Verificar si un paciente tiene referencias pendientes
 export const checkPatientPendingReferrals = async (patientId) => {
   try {
     const referrals = await getAllReferrals();

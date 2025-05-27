@@ -4,13 +4,13 @@ import { useField } from 'formik';
 import { getAllPatients } from '../services/patientService';
 import { getAllReferrals } from '../services/referralService';
 
-const PatientSearchField = ({ name, label, placeholder, required = false }) => {
+const PatientSearchField = ({ name, label, placeholder, required = false, onPatientChange = null }) => {
   const [field, meta, helpers] = useField(name);
   const { setValue } = helpers;
   
   const [searchTerm, setSearchTerm] = useState('');
   const [patients, setPatients] = useState([]);
-  const [availablePatients, setAvailablePatients] = useState([]); // ⭐ Pacientes disponibles (sin referencias pendientes)
+  const [availablePatients, setAvailablePatients] = useState([]); // Pacientes disponibles (sin referencias pendientes)
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -88,15 +88,20 @@ const PatientSearchField = ({ name, label, placeholder, required = false }) => {
     };
   }, []);
   
-  // Manejar la selección de un paciente
+  // ⭐ ACTUALIZADA: Manejar la selección de un paciente
   const handleSelectPatient = (patient) => {
     setSelectedPatient(patient);
     setSearchTerm(`${patient.first_name} ${patient.last_name}`);
     setValue(patient.id.toString());
     setShowResults(false);
+    
+    // ⭐ NUEVO: Llamar a la función callback si existe
+    if (onPatientChange) {
+      onPatientChange(patient.id.toString());
+    }
   };
   
-  // Manejar cambios en el campo de búsqueda
+  // ⭐ ACTUALIZADA: Manejar cambios en el campo de búsqueda
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
     
@@ -104,6 +109,11 @@ const PatientSearchField = ({ name, label, placeholder, required = false }) => {
     if (e.target.value.trim() === '') {
       setSelectedPatient(null);
       setValue('');
+      
+      // ⭐ NUEVO: Notificar que no hay paciente seleccionado
+      if (onPatientChange) {
+        onPatientChange(null);
+      }
     }
     
     setShowResults(true);
@@ -173,6 +183,7 @@ const PatientSearchField = ({ name, label, placeholder, required = false }) => {
                     <p className="text-xs text-gray-500">
                       {patient.ci ? `CI: ${patient.ci}` : 'Sin CI registrada'} • 
                       {` ${patient.tb_type}`}
+                      {patient.hospital_name && ` • ${patient.hospital_name}`}
                     </p>
                   </div>
                 </div>

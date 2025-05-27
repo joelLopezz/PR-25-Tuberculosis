@@ -10,5 +10,8 @@ router.post('/', auth, isMedicalStaff, referralController.createReferral);
 router.get('/:id', auth, referralController.getReferralById);
 router.put('/:id/status', auth, isMedicalStaff, referralController.updateReferralStatus);
 router.delete('/:id', auth, isMedicalStaff, referralController.deleteReferral);
+// ⭐ NUEVAS RUTAS: Para manejo de historial de hospitales
+router.get('/patient/:patientId/hospital-history', auth, referralController.getPatientHospitalHistory);
+router.get('/patient/:patientId/available-hospitals', auth, referralController.getAvailableHospitalsForReferral);
 
 module.exports = router;

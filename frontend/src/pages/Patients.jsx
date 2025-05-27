@@ -1,10 +1,10 @@
 /* eslint-disable no-unused-vars */
-// src/pages/Patients.jsx
+// src/pages/Patients.jsx - Versión con historial de referencias
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getAllPatients, deletePatient } from '../services/patientService';
-import { getAllReferrals } from '../services/referralService';
+import { getAllReferrals, getPatientHospitalHistory } from '../services/referralService';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 const Patients = () => {
@@ -13,9 +13,12 @@ const Patients = () => {
   const [error, setError] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState(null);
-  // ⭐ NUEVO ESTADO para manejar errores específicos de eliminación
   const [deleteError, setDeleteError] = useState(null);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  // ⭐ NUEVO: Estado para mostrar historial de paciente
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedPatientHistory, setSelectedPatientHistory] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,10 +40,30 @@ const Patients = () => {
           return acc;
         }, {});
       
+      // ⭐ NUEVO: Agregar información de referencias completadas/aceptadas
+      const patientsWithReferralCounts = referralsData.reduce((acc, referral) => {
+        if (!acc[referral.patient_id]) {
+          acc[referral.patient_id] = {
+            totalReferences: 0,
+            acceptedReferences: 0,
+            completedReferences: 0
+          };
+        }
+        acc[referral.patient_id].totalReferences++;
+        if (referral.status === 'Aceptada') acc[referral.patient_id].acceptedReferences++;
+        if (referral.status === 'Completada') acc[referral.patient_id].completedReferences++;
+        return acc;
+      }, {});
+      
       const patientsWithReferralInfo = patientsData.map(patient => ({
         ...patient,
         hasPendingReferral: !!patientsWithPendingReferrals[patient.id],
-        pendingReferral: patientsWithPendingReferrals[patient.id] || null
+        pendingReferral: patientsWithPendingReferrals[patient.id] || null,
+        referralStats: patientsWithReferralCounts[patient.id] || {
+          totalReferences: 0,
+          acceptedReferences: 0,
+          completedReferences: 0
+        }
       }));
       
       setPatients(patientsWithReferralInfo);
@@ -57,14 +80,33 @@ const Patients = () => {
     await fetchPatientsWithReferralStatus();
   };
 
+  // ⭐ NUEVA FUNCIÓN: Mostrar historial de un paciente
+  const handleViewHistory = async (patient) => {
+    try {
+      setLoadingHistory(true);
+      setShowHistoryModal(true);
+      
+      const historyData = await getPatientHospitalHistory(patient.id);
+      setSelectedPatientHistory({
+        patient: patient,
+        history: historyData.hospitalHistory || []
+      });
+    } catch (error) {
+      console.error('Error al cargar historial:', error);
+      toast.error('Error al cargar el historial del paciente');
+      setShowHistoryModal(false);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   const handleDeleteClick = (patient) => {
     setPatientToDelete(patient);
-    setDeleteError(null); // ⭐ Limpiar errores previos
-    setShowErrorModal(false); // ⭐ Asegurar que el modal de error esté cerrado
+    setDeleteError(null);
+    setShowErrorModal(false);
     setShowDeleteModal(true);
   };
 
-  // ⭐ MODIFICADA: Manejo mejorado de errores de eliminación
   const handleDeleteConfirm = async () => {
     if (!patientToDelete) return;
     
@@ -72,13 +114,12 @@ const Patients = () => {
       await deletePatient(patientToDelete.id);
       toast.success(`Paciente ${patientToDelete.first_name} ${patientToDelete.last_name} eliminado correctamente`);
       fetchPatients();
-      handleCloseModal(); // ⭐ Usar función centralizada para cerrar
+      handleCloseModal();
     } catch (err) {
       console.error('Error al eliminar paciente:', err);
       
-      // ⭐ CORREGIDA: Detección simplificada del error 409
       if (err.status === 409 || (err.response && err.response.status === 409) || err.hasReferences) {
-        console.log('Error 409 detectado, datos completos:', err); // ⭐ Debug mejorado
+        console.log('Error 409 detectado, datos completos:', err);
         
         setDeleteError({
           type: 'references',
@@ -89,34 +130,30 @@ const Patients = () => {
           counterReferenceCount: err.counterReferenceCount || 0
         });
         
-        // ⭐ NUEVO: Cerrar modal de confirmación y abrir modal de error
         setShowDeleteModal(false);
         
-        // ⭐ AGREGAR DELAY para asegurar que el modal anterior se cierre completamente
         setTimeout(() => {
           setShowErrorModal(true);
-          console.log('Intentando abrir modal de error, showErrorModal:', true); // ⭐ Debug
-          console.log('Estado deleteError:', err); // ⭐ Debug
         }, 150);
       } else {
-        // Error genérico
         console.log('Error genérico detectado:', err);
         setDeleteError({
           type: 'generic',
           message: err.message || 'Error al eliminar paciente'
         });
         toast.error(err.message || 'Error al eliminar paciente');
-        handleCloseModal(); // ⭐ Cerrar modal en caso de error genérico
+        handleCloseModal();
       }
     }
   };
 
-  // ⭐ NUEVA FUNCIÓN: Cerrar modal y limpiar errores
   const handleCloseModal = () => {
     setShowDeleteModal(false);
-    setShowErrorModal(false); // ⭐ También cerrar modal de error
+    setShowErrorModal(false);
+    setShowHistoryModal(false); // ⭐ También cerrar modal de historial
     setDeleteError(null);
     setPatientToDelete(null);
+    setSelectedPatientHistory(null); // ⭐ Limpiar historial seleccionado
   };
 
   const renderPatientsTable = () => {
@@ -140,9 +177,8 @@ const Patients = () => {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CI</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo TB</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Edad</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Género</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hospital</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado/Referencias</th>
               <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
@@ -186,27 +222,40 @@ const Patients = () => {
                     {age} años
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {patient.gender === 'M' ? 'Masculino' : patient.gender === 'F' ? 'Femenino' : 'Otro'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {patient.hospital_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {patient.hasPendingReferral ? (
-                      <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                        <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Ref. Pendiente
-                      </span>
-                    ) : (
-                      <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                        Disponible
-                      </span>
-                    )}
+                    <div className="flex flex-col space-y-1">
+                      {/* Estado principal */}
+                      {patient.hasPendingReferral ? (
+                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                          </svg>
+                          Ref. Pendiente
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                          Disponible
+                        </span>
+                      )}
+                      
+                      {/* ⭐ NUEVO: Estadísticas de referencias */}
+                      {patient.referralStats.totalReferences > 0 && (
+                        <div className="text-xs text-gray-500">
+                          📊 {patient.referralStats.totalReferences} ref. total
+                          {patient.referralStats.acceptedReferences > 0 && (
+                            <span className="text-green-600"> • {patient.referralStats.acceptedReferences} aceptadas</span>
+                          )}
+                          {patient.referralStats.completedReferences > 0 && (
+                            <span className="text-blue-600"> • {patient.referralStats.completedReferences} completadas</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <div className="flex justify-center space-x-2">
@@ -220,6 +269,20 @@ const Patients = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                         </svg>
                       </Link>
+
+                      {/* ⭐ NUEVO: Botón para ver historial de referencias */}
+                      {patient.referralStats.totalReferences > 0 && (
+                        <button
+                          onClick={() => handleViewHistory(patient)}
+                          className="text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 p-1.5 rounded-full transition-colors duration-300"
+                          title="Ver historial de referencias"
+                        >
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                          </svg>
+                        </button>
+                      )}
+                      
                       <Link
                         to={`/editar-paciente/${patient.id}`}
                         className="text-indigo-600 hover:text-indigo-900 bg-indigo-100 hover:bg-indigo-200 p-1.5 rounded-full transition-colors duration-300"
@@ -315,7 +378,7 @@ const Patients = () => {
         renderPatientsTable()
       )}
       
-      {/* ⭐ MODAL NORMAL DE CONFIRMACIÓN */}
+      {/* Modal normal de confirmación de eliminación */}
       <DeleteConfirmModal
         isOpen={showDeleteModal}
         onClose={handleCloseModal}
@@ -324,11 +387,8 @@ const Patients = () => {
         itemType="paciente"
       />
 
-      {/* ⭐ MODAL DE ERROR PARA REFERENCIAS - SIMPLIFICADO CON LOGS */}
-      {(() => {
-        console.log('Renderizando modal de error:', { showErrorModal, deleteError: !!deleteError });
-        return showErrorModal && deleteError;
-      })() && (
+      {/* Modal de error para referencias */}
+      {showErrorModal && deleteError && (
         <div 
           className="fixed inset-0 overflow-y-auto" 
           style={{ 
@@ -346,7 +406,6 @@ const Patients = () => {
               overflow: 'auto'
             }}
           >
-            {/* Cabecera del modal */}
             <div className="px-6 py-4 border-b border-gray-200 bg-yellow-50">
               <div className="flex items-center">
                 <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -370,7 +429,6 @@ const Patients = () => {
               </div>
             </div>
 
-            {/* Contenido del modal */}
             <div className="px-6 py-4">
               <p className="text-sm text-gray-700 mb-4">
                 {deleteError.message}
@@ -403,7 +461,6 @@ const Patients = () => {
               </div>
             </div>
 
-            {/* Botones del modal */}
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3 bg-gray-50">
               <button
                 type="button"
@@ -419,6 +476,123 @@ const Patients = () => {
               >
                 Ver Referencias
               </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⭐ NUEVO: Modal para mostrar historial de referencias */}
+      {showHistoryModal && (
+        <div 
+          className="fixed inset-0 overflow-y-auto" 
+          style={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4"
+            style={{
+              maxHeight: '90vh',
+              overflow: 'auto'
+            }}
+          >
+            <div className="px-6 py-4 border-b border-gray-200 bg-purple-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      📍 Historial de Hospitalizaciones
+                    </h3>
+                    {selectedPatientHistory && (
+                      <p className="text-sm text-purple-600">
+                        {selectedPatientHistory.patient.first_name} {selectedPatientHistory.patient.last_name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={handleCloseModal}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-4">
+              {loadingHistory ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Cargando historial...</p>
+                </div>
+              ) : selectedPatientHistory && selectedPatientHistory.history.length > 0 ? (
+                <div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Hospitales donde ha estado este paciente durante su tratamiento:
+                  </p>
+                  <div className="space-y-3">
+                    {selectedPatientHistory.history.map((hospital, index) => (
+                      <div 
+                        key={hospital.id} 
+                        className={`flex items-center p-3 rounded-md border ${
+                          hospital.tipo === 'actual' 
+                            ? 'bg-green-50 border-green-200' 
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                          hospital.tipo === 'actual' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="ml-3 flex-1">
+                          <p className={`font-medium ${
+                            hospital.tipo === 'actual' ? 'text-green-900' : 'text-gray-900'
+                          }`}>
+                            {hospital.name}
+                            {hospital.tipo === 'actual' && (
+                              <span className="ml-2 px-2 py-1 text-xs bg-green-200 text-green-800 rounded-full">
+                                Hospital Actual
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-sm text-gray-500 capitalize">
+                            {hospital.tipo === 'actual' ? 'Ubicación actual' : 
+                             hospital.tipo === 'origen' ? 'Hospital de origen' : 'Hospital de destino'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <p className="text-gray-500">No hay historial de referencias para este paciente.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end bg-gray-50">
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         </div>
