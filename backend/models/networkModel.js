@@ -8,26 +8,24 @@ const db = require('../config/db');
 const getAllNetworks = () => {
   return new Promise((resolve, reject) => {
     const query = `
-      SELECT 
-        n.id, 
-        n.name, 
-        n.code, 
-        n.status, 
-        n.created_at, 
+      SELECT
+        n.id,
+        n.name,
+        n.code,
+        n.status,
+        n.created_at,
         n.updated_at,
-        COUNT(DISTINCT h.id) AS hospital_count,    -- Conteo de hospitales
-        COUNT(DISTINCT m.id) AS municipality_count -- Conteo de municipios
-      FROM 
+        COUNT(DISTINCT h.id) AS hospital_count,             -- Conteo de hospitales
+        COUNT(DISTINCT h.municipality_id) AS municipality_count -- ⭐ CAMBIO CLAVE AQUÍ: Contar municipios a través de la tabla hospitals
+      FROM
         networks n
-      LEFT JOIN 
+      LEFT JOIN
         hospitals h ON n.id = h.network_id AND h.status = 1 -- Unir con hospitales
-      LEFT JOIN 
-        municipalities m ON n.id = m.network_id AND m.status = 1 -- Unir con municipios
-      WHERE 
+      WHERE
         n.status = 1
-      GROUP BY 
-        n.id, n.name, n.code, n.status, n.created_at, n.updated_at -- Agrupar por todos los campos de network
-      ORDER BY 
+      GROUP BY
+        n.id, n.name, n.code, n.status, n.created_at, n.updated_at
+      ORDER BY
         n.name ASC
     `;
 
@@ -48,8 +46,6 @@ const getAllNetworks = () => {
  */
 const getNetworkById = (id) => {
   return new Promise((resolve, reject) => {
-    // También puedes querer que esta función incluya conteos si la usas en otro lugar del frontend
-    // Por ahora, solo la consulta básica
     db.query('SELECT * FROM networks WHERE id = ? AND status = 1', [id], (err, results) => {
       if (err) {
         return reject(err);
