@@ -7,13 +7,34 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 // Configuración de nodemailer
-const transporter = nodemailer.createTransport({
+const transporter = nodemailer.createTransporter({
   service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
   },
 });
+
+/**
+ * ⭐ FUNCIÓN AUXILIAR: Ejecutar consulta con reintentos
+ */
+const executeQuery = async (query, params, maxRetries = 3) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const [results] = await db.promise().query(query, params);
+      return results;
+    } catch (error) {
+      console.error(`Intento ${attempt} falló:`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Esperar antes del siguiente intento
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+};
 
 /**
  * Login de usuario
@@ -24,12 +45,12 @@ exports.login = async (req, res) => {
   try {
     const { identifier, password } = req.body;
 
-    // Verificar si el usuario existe y está activo
-    const [users] = await db.promise().query(
+    // ⭐ MEJORADO: Usar función con reintentos
+    const users = await executeQuery(
       `SELECT u.*, r.name as role_name 
-         FROM users u
-         JOIN roles r ON u.role_id = r.id
-         WHERE (u.email = ? OR u.username = ?) AND u.status = 1`,
+       FROM users u
+       JOIN roles r ON u.role_id = r.id
+       WHERE (u.email = ? OR u.username = ?) AND u.status = 1`,
       [identifier, identifier]
     );
 
@@ -50,10 +71,15 @@ exports.login = async (req, res) => {
 
     // Solo actualizar último login si no es primer inicio
     if (!firstLogin) {
-      await db.promise().query(
-        'UPDATE users SET last_login = NOW() WHERE id = ?',
-        [user.id]
-      );
+      try {
+        await executeQuery(
+          'UPDATE users SET last_login = NOW() WHERE id = ?',
+          [user.id]
+        );
+      } catch (updateError) {
+        console.error('Error al actualizar last_login:', updateError);
+        // No fallar el login por esto
+      }
     }
 
     // Generar token JWT
@@ -67,19 +93,26 @@ exports.login = async (req, res) => {
         password_change_required: firstLogin
       }
     };
+    
     // Firmar el token
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
       { expiresIn: '8h' },
       (err, token) => {
-        if (err) throw err;
+        if (err) {
+          console.error('Error al generar JWT:', err);
+          return res.status(500).json({ message: 'Error en el servidor' });
+        }
         res.json({ token, password_change_required: firstLogin });
       }
     );
   } catch (error) {
     console.error('Error en login:', error);
-    res.status(500).json({ message: 'Error en el servidor' });
+    res.status(500).json({ 
+      message: 'Error en el servidor',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -90,15 +123,15 @@ exports.login = async (req, res) => {
  */
 exports.getUser = async (req, res) => {
   try {
-    // Excluir password de la respuesta
-    const [users] = await db.promise().query(
+    // ⭐ MEJORADO: Usar función con reintentos
+    const users = await executeQuery(
       `SELECT u.id, u.username, u.email, r.name as role, h.name as hospital, h.id as hospital_id,
               s.first_name, s.last_name, s.specialty, u.last_login
-         FROM users u
-         JOIN roles r ON u.role_id = r.id
-         LEFT JOIN hospitals h ON u.hospital_id = h.id
-         LEFT JOIN staff s ON u.id = s.user_id
-         WHERE u.id = ? AND u.status = 1`,
+       FROM users u
+       JOIN roles r ON u.role_id = r.id
+       LEFT JOIN hospitals h ON u.hospital_id = h.id
+       LEFT JOIN staff s ON u.id = s.user_id
+       WHERE u.id = ? AND u.status = 1`,
       [req.user.id]
     );
 
@@ -115,7 +148,10 @@ exports.getUser = async (req, res) => {
     res.json(userData);
   } catch (error) {
     console.error('Error al obtener usuario:', error);
-    res.status(500).json({ message: 'Error en el servidor' });
+    res.status(500).json({ 
+      message: 'Error en el servidor',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -132,8 +168,8 @@ exports.forgotPassword = async (req, res) => {
       return res.status(400).json({ message: 'Por favor proporcione un correo electrónico o nombre de usuario' });
     }
 
-    // Verificar si el usuario existe - MODIFICADO: Quitamos first_name y last_name
-    const [users] = await db.promise().query(
+    // ⭐ MEJORADO: Usar función con reintentos
+    const users = await executeQuery(
       'SELECT id, email, username FROM users WHERE (email = ? OR username = ?) AND status = 1',
       [identifier, identifier]
     );
@@ -150,21 +186,15 @@ exports.forgotPassword = async (req, res) => {
     const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hora
     
     // Almacenar token en la base de datos
-    await db.promise().query(
+    await executeQuery(
       'UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE id = ?',
       [resetToken, resetTokenExpiry, user.id]
     );
     
     // URL del frontend para restablecer contraseña
-    // Usamos la variable de entorno FRONTEND_URL para el enlace de producción
     const frontendResetPageUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
     
-    // Si estamos en desarrollo, podemos seguir usando localhost, si no, la URL de Vercel
-    const urlToSendInEmail = process.env.NODE_ENV === 'production' 
-      ? frontendResetPageUrl 
-      : `http://localhost:5173/reset-password/${resetToken}`;
-    
-    // Enviar correo con enlace de restablecimiento - MODIFICADO: Sin personalización con nombre
+    // Enviar correo con enlace de restablecimiento
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: user.email,
@@ -182,7 +212,7 @@ exports.forgotPassword = async (req, res) => {
             <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta. Si no realizaste esta solicitud, puedes ignorar este correo.</p>
             <p>Para crear una nueva contraseña, haz clic en el siguiente enlace:</p>
             <div style="text-align: center; margin: 25px 0;">
-              <a href="${urlToSendInEmail}" style="background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Restablecer contraseña</a>
+              <a href="${frontendResetPageUrl}" style="background-color: #3498db; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">Restablecer contraseña</a>
             </div>
             <p>Este enlace es válido por 1 hora. Después de ese tiempo, deberás solicitar un nuevo enlace de recuperación.</p>
           </div>
@@ -214,8 +244,8 @@ exports.verifyResetToken = async (req, res) => {
   try {
     const { token } = req.params;
     
-    // Verificar si el token existe y no ha expirado
-    const [users] = await db.promise().query(
+    // ⭐ MEJORADO: Usar función con reintentos
+    const users = await executeQuery(
       'SELECT id FROM users WHERE reset_token = ? AND reset_token_expiry > NOW() AND status = 1',
       [token]
     );
@@ -245,8 +275,8 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'El token y la contraseña son obligatorios' });
     }
     
-    // Verificar si el token existe y no ha expirado
-    const [users] = await db.promise().query(
+    // ⭐ MEJORADO: Usar función con reintentos
+    const users = await executeQuery(
       'SELECT id FROM users WHERE reset_token = ? AND reset_token_expiry > NOW() AND status = 1',
       [token]
     );
@@ -270,7 +300,7 @@ exports.resetPassword = async (req, res) => {
     const hashedPassword = await bcryptjs.hash(password, salt);
     
     // Actualizar contraseña y limpiar token
-    await db.promise().query(
+    await executeQuery(
       'UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL, last_login = NOW() WHERE id = ?',
       [hashedPassword, userId]
     );
