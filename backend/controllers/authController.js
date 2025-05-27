@@ -45,6 +45,7 @@ exports.login = async (req, res) => {
   try {
     console.log('🔐 Intento de login para:', req.body.identifier);
     const { identifier, password } = req.body;
+    console.log('🔑 Contraseña recibida del frontend (sin hash):', password); // ⭐ LOG DE DEBUG (¡CUIDADO EN PRODUCCIÓN REAL!)
 
     // ⭐ MEJORADO: Usar función con reintentos
     const users = await executeQuery(
@@ -67,6 +68,7 @@ exports.login = async (req, res) => {
     const passwordMatch = await bcryptjs.compare(password, user.password);
     if (!passwordMatch) {
       console.log('❌ Contraseña incorrecta para:', user.username);
+      console.log('   Hash almacenado en DB para este usuario:', user.password); // ⭐ LOG DE DEBUG
       return res.status(401).json({ message: 'Credenciales incorrectas' });
     }
 

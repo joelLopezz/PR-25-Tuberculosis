@@ -36,6 +36,7 @@ const generateRandomPassword = (length = 10) => {
 const sendCredentialsByEmail = async (userData) => {
   try {
     const { email, username, password, hospital_name } = userData;
+    console.log(`📧 Intentando enviar correo a: ${email} con usuario: ${username} y contraseña: ${password}`); // ⭐ LOG DE DEBUG
     
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -68,9 +69,10 @@ const sendCredentialsByEmail = async (userData) => {
     };
     
     await transporter.sendMail(mailOptions);
+    console.log('✅ Correo enviado exitosamente a:', email); // ⭐ LOG DE DEBUG
     return true;
   } catch (error) {
-    console.error('Error al enviar correo:', error);
+    console.error('❌ Error al enviar correo:', error);
     return false;
   }
 };
@@ -340,6 +342,7 @@ exports.deleteHospitalAdmin = async (req, res) => {
 exports.resetPassword = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('🔄 Resetting password for user ID:', id); // ⭐ LOG DE DEBUG
     
     // Verificar si existe
     const [rows] = await db.promise().query(
@@ -352,34 +355,38 @@ exports.resetPassword = async (req, res) => {
     );
     
     if (rows.length === 0) {
+      console.log('❌ Administrador de hospital no encontrado para reset de contraseña:', id); // ⭐ LOG DE DEBUG
       return res.status(404).json({ message: 'Administrador de hospital no encontrado' });
     }
     
     // Generar nueva contraseña aleatoria
     const randomPassword = generateRandomPassword();
+    console.log('🔑 Contraseña aleatoria generada (sin hash):', randomPassword); // ⭐ LOG DE DEBUG
     
     // Hash de la contraseña
     const salt = await bcryptjs.genSalt(10);
     const hashedPassword = await bcryptjs.hash(randomPassword, salt);
+    console.log('🔒 Contraseña hasheada (para guardar en DB):', hashedPassword); // ⭐ LOG DE DEBUG
     
     // Actualizar contraseña
     await db.promise().query(
       'UPDATE users SET password = ? WHERE id = ?',
       [hashedPassword, id]
     );
+    console.log('💾 Contraseña hasheada actualizada en DB para usuario ID:', id); // ⭐ LOG DE DEBUG
     
     // Enviar nuevas credenciales por email
     await sendCredentialsByEmail({
       email: rows[0].email,
       username: rows[0].username,
-      password: randomPassword,
+      password: randomPassword, // ¡Importante! Aquí se envía la contraseña PLANA generada
       hospital_name: rows[0].hospital_name
     });
     
     res.json({ message: 'Contraseña restablecida y enviada por correo' });
     
   } catch (error) {
-    console.error('Error al resetear contraseña:', error);
+    console.error('💥 Error al resetear contraseña:', error);
     res.status(500).json({ message: 'Error en el servidor' });
   }
 };
