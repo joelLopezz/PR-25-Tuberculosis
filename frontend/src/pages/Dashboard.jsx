@@ -27,7 +27,7 @@ const Dashboard = () => {
         }
 
         // Obtener estadísticas para personal médico
-        if (isMedicalStaff || isHospitalAdmin || isSedesAdmin) {
+        if (isMedicalStaff /*|| isHospitalAdmin || isSedesAdmin*/) {
           // Cargar número de pacientes
           const patients = await getAllPatients();
           setPatientCount(patients.length);
@@ -87,7 +87,7 @@ const Dashboard = () => {
       </div>
 
       {/* Tarjetas de Estadísticas para personal médico */}
-      {(isMedicalStaff || isHospitalAdmin) && (
+      {isMedicalStaff && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Tarjeta: Total de Pacientes */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-300 hover:shadow-lg hover:transform hover:scale-105">

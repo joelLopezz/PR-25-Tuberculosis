@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { getAllPatients, deletePatient } from '../services/patientService';
 import { getAllReferrals, getPatientHospitalHistory } from '../services/referralService';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
+import { useAuth } from '../context/AuthContext';
 
 const Patients = () => {
   const [patients, setPatients] = useState([]);
@@ -20,6 +21,7 @@ const Patients = () => {
   const [selectedPatientHistory, setSelectedPatientHistory] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const navigate = useNavigate();
+  const { isMedicalStaff } = useAuth();
 
   useEffect(() => {
     fetchPatientsWithReferralStatus();
@@ -293,7 +295,8 @@ const Patients = () => {
                         </svg>
                       </Link>
                       
-                      {patient.hasPendingReferral ? (
+                      {isMedicalStaff && (
+                      patient.hasPendingReferral ? (
                         <div className="relative">
                           <button
                             disabled
@@ -318,7 +321,8 @@ const Patients = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
                           </svg>
                         </Link>
-                      )}
+                      )
+                    )}
                       
                       <button
                         onClick={() => handleDeleteClick(patient)}
