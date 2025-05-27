@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getAllPatients, deletePatient } from '../services/patientService';
+import { getAllReferrals } from '../services/referralService'; // ⭐ AGREGAR ESTA IMPORTACIÓN
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 const Patients = () => {
@@ -14,17 +15,37 @@ const Patients = () => {
   const [patientToDelete, setPatientToDelete] = useState(null);
   const navigate = useNavigate();
 
-  // Cargar pacientes al montar el componente
+  // ⭐ MODIFICAR ESTE useEffect - Cargar pacientes y referencias
   useEffect(() => {
-    fetchPatients();
+    fetchPatientsWithReferralStatus();
   }, []);
 
-  // Función para cargar la lista de pacientes
-  const fetchPatients = async () => {
+  // ⭐ NUEVA FUNCIÓN - Cargar pacientes con estado de referencias
+  const fetchPatientsWithReferralStatus = async () => {
     try {
       setLoading(true);
-      const data = await getAllPatients();
-      setPatients(data);
+      // Cargar pacientes y referencias al mismo tiempo
+      const [patientsData, referralsData] = await Promise.all([
+        getAllPatients(),
+        getAllReferrals()
+      ]);
+      
+      // Crear un mapa de pacientes con referencias pendientes
+      const patientsWithPendingReferrals = referralsData
+        .filter(referral => referral.status === 'Pendiente')
+        .reduce((acc, referral) => {
+          acc[referral.patient_id] = referral;
+          return acc;
+        }, {});
+      
+      // Agregar información de referencia pendiente a cada paciente
+      const patientsWithReferralInfo = patientsData.map(patient => ({
+        ...patient,
+        hasPendingReferral: !!patientsWithPendingReferrals[patient.id],
+        pendingReferral: patientsWithPendingReferrals[patient.id] || null
+      }));
+      
+      setPatients(patientsWithReferralInfo);
       setError(null);
     } catch (err) {
       setError(err.message || 'Error al cargar pacientes');
@@ -32,6 +53,11 @@ const Patients = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ⭐ MODIFICAR ESTA FUNCIÓN - Recargar con estado de referencias
+  const fetchPatients = async () => {
+    await fetchPatientsWithReferralStatus();
   };
 
   // Abrir modal de confirmación para eliminar
@@ -78,6 +104,8 @@ const Patients = () => {
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Edad</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Género</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hospital</th>
+              {/* ⭐ AGREGAR NUEVA COLUMNA */}
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
               <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
             </tr>
           </thead>
@@ -127,6 +155,24 @@ const Patients = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {patient.hospital_name}
                   </td>
+                  {/* ⭐ NUEVA CELDA - Estado de referencia */}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {patient.hasPendingReferral ? (
+                      <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                        <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Ref. Pendiente
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Disponible
+                      </span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <div className="flex justify-center space-x-2">
                       <Link
@@ -148,15 +194,36 @@ const Patients = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                         </svg>
                       </Link>
-                      <Link
-                        to={`/crear-referencia?patient=${patient.id}`}
-                        className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 p-1.5 rounded-full transition-colors duration-300"
-                        title="Crear referencia"
-                      >
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
-                        </svg>
-                      </Link>
+                      
+                      {/* ⭐ MODIFICAR BOTÓN CREAR REFERENCIA - Condicional */}
+                      {patient.hasPendingReferral ? (
+                        <div className="relative">
+                          <button
+                            disabled
+                            className="text-gray-400 bg-gray-100 p-1.5 rounded-full cursor-not-allowed opacity-50"
+                            title={`Este paciente ya tiene una referencia pendiente hacia ${patient.pendingReferral?.destination_hospital_name || 'otro hospital'}`}
+                          >
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                            </svg>
+                          </button>
+                          {/* Badge de referencia pendiente */}
+                          <span className="absolute -top-1 -right-1 h-3 w-3 bg-yellow-400 rounded-full flex items-center justify-center">
+                            <span className="text-xs text-white font-bold">!</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <Link
+                          to={`/crear-referencia?patient=${patient.id}`}
+                          className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 p-1.5 rounded-full transition-colors duration-300"
+                          title="Crear referencia"
+                        >
+                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
+                          </svg>
+                        </Link>
+                      )}
+                      
                       <button
                         onClick={() => handleDeleteClick(patient)}
                         className="text-red-600 hover:text-red-900 bg-red-100 hover:bg-red-200 p-1.5 rounded-full transition-colors duration-300"

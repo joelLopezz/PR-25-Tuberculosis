@@ -6,8 +6,9 @@ import * as Yup from 'yup';
 import { useNavigate } from 'react-router-dom';
 import { getAllHospitals } from '../services/hospitalService';
 import { getPatientById } from '../services/patientService';
+import { checkPatientPendingReferrals } from '../services/referralService'; // ⭐ AGREGAR ESTA IMPORTACIÓN
 import { useAuth } from '../context/AuthContext';
-import PatientSearchField from './PatientSearchField'; // Importar el nuevo componente
+import PatientSearchField from './PatientSearchField';
 
 const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
   const [filteredHospitals, setFilteredHospitals] = useState([]);
   const [patient, setPatient] = useState(null);
   const [loadingPatient, setLoadingPatient] = useState(false);
+  const [pendingReferralError, setPendingReferralError] = useState(''); // ⭐ AGREGAR ESTE ESTADO
   const { user } = useAuth();
 
   // Esquema de validación
@@ -47,11 +49,11 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
   const defaultValues = {
     patient_id: patientId || '',
     destination_hospital_id: '',
-    reference_date: new Date().toISOString().substr(0, 10), // Fecha actual en formato YYYY-MM-DD
+    reference_date: new Date().toISOString().substr(0, 10),
     reason: '',
     diagnosis: '',
     clinical_summary: '',
-    urgency_level: 'Media', // Valor por defecto
+    urgency_level: 'Media',
     notes: '',
   };
 
@@ -59,24 +61,19 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Cargar lista de hospitales
         const hospitalsData = await getAllHospitals();
         setHospitals(hospitalsData);
         
-        // Si hay un patientId, cargar datos del paciente
         if (patientId) {
           setLoadingPatient(true);
           const patientData = await getPatientById(patientId);
           setPatient(patientData);
           
-          // Filtrar hospitales para excluir el del paciente
           const filtered = hospitalsData.filter(hospital => {
-            // Convertir IDs a números para comparación segura (si es que vienen como strings)
             const hospitalId = typeof hospital.id === 'string' ? parseInt(hospital.id, 10) : hospital.id;
             const patientHospitalId = typeof patientData.hospital_id === 'string' ? 
               parseInt(patientData.hospital_id, 10) : patientData.hospital_id;
             
-            // Excluir el hospital del paciente
             return hospitalId !== patientHospitalId;
           });
           
@@ -98,15 +95,17 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
   const handlePatientChange = async (formikProps, patientId) => {
     if (!patientId) {
       setPatient(null);
+      setPendingReferralError(''); // ⭐ LIMPIAR ERROR AL CAMBIAR PACIENTE
       return;
     }
 
     try {
       setLoadingPatient(true);
+      setPendingReferralError(''); // ⭐ LIMPIAR ERROR AL CAMBIAR PACIENTE
+      
       const patientData = await getPatientById(patientId);
       setPatient(patientData);
       
-      // Filtrar hospitales excluyendo el del paciente
       if (hospitals.length > 0) {
         const filtered = hospitals.filter(hospital => {
           const hospitalId = typeof hospital.id === 'string' ? parseInt(hospital.id, 10) : hospital.id;
@@ -118,7 +117,6 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
         
         setFilteredHospitals(filtered);
         
-        // Limpiar hospital de destino si es el mismo que el del paciente
         if (formikProps.values.destination_hospital_id) {
           const destHospitalId = parseInt(formikProps.values.destination_hospital_id, 10);
           if (destHospitalId === patientData.hospital_id) {
@@ -133,14 +131,30 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
     }
   };
 
-  // Manejar envío del formulario
-  const handleSubmit = async (values, { setSubmitting }) => {
+  // ⭐ MODIFICAR ESTA FUNCIÓN - Agregar validación de referencias pendientes
+  const handleSubmit = async (values, { setSubmitting, setFieldError }) => {
     try {
       setLoading(true);
+      setPendingReferralError(''); // Limpiar errores previos
+      
+      // ⭐ NUEVA VALIDACIÓN: verificar referencias pendientes antes de enviar
+      if (values.patient_id) {
+        const hasPendingReferral = await checkPatientPendingReferrals(values.patient_id);
+        if (hasPendingReferral) {
+          setPendingReferralError('Este paciente ya tiene una referencia pendiente. No se puede crear otra referencia hasta que la actual sea procesada.');
+          setFieldError('patient_id', 'Paciente con referencia pendiente');
+          return;
+        }
+      }
+      
       await onSubmit(values);
-      // No navegamos aquí, dejamos que el componente padre maneje la redirección
     } catch (error) {
       console.error('Error en el formulario:', error);
+      // Si el error viene del backend sobre referencia pendiente, mostrarlo
+      if (error.message && error.message.includes('referencia pendiente')) {
+        setPendingReferralError(error.message);
+        setFieldError('patient_id', 'Paciente con referencia pendiente');
+      }
     } finally {
       setLoading(false);
       setSubmitting(false);
@@ -169,6 +183,27 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
         >
           {(formikProps) => (
             <Form className="p-6 space-y-4">
+              {/* ⭐ AGREGAR MENSAJE DE ERROR DE REFERENCIA PENDIENTE */}
+              {pendingReferralError && (
+                <div className="col-span-2 bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-red-800">
+                        No se puede crear la referencia
+                      </h3>
+                      <div className="mt-2 text-sm text-red-700">
+                        <p>{pendingReferralError}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Información del paciente (si está disponible) */}
               {patient && (
                 <div className="bg-blue-50 p-4 rounded-md mb-4">
@@ -220,12 +255,10 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
                   >
                     <option value="">Seleccionar hospital</option>
                     {filteredHospitals.map(hospital => {
-                      // Convertir IDs a número para comparaciones seguras
                       const hospitalId = typeof hospital.id === 'string' ? parseInt(hospital.id, 10) : hospital.id;
                       const userHospitalId = user?.hospital_id ? 
                         (typeof user.hospital_id === 'string' ? parseInt(user.hospital_id, 10) : user.hospital_id) : null;
                       
-                      // Excluir también el hospital del usuario actual si es médico
                       if (userHospitalId && hospitalId === userHospitalId) {
                         return null;
                       }
@@ -344,7 +377,7 @@ const ReferralForm = ({ initialValues = {}, onSubmit, patientId = null }) => {
                 </button>
                 <button
                   type="submit"
-                  disabled={formikProps.isSubmitting || loading}
+                  disabled={formikProps.isSubmitting || loading || !!pendingReferralError} // ⭐ DESHABILITAR SI HAY ERROR
                   className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none disabled:opacity-50"
                 >
                   {loading ? (

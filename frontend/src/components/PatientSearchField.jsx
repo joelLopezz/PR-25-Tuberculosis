@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useField } from 'formik';
 import { getAllPatients } from '../services/patientService';
+import { getAllReferrals } from '../services/referralService';
 
 const PatientSearchField = ({ name, label, placeholder, required = false }) => {
   const [field, meta, helpers] = useField(name);
@@ -9,39 +10,54 @@ const PatientSearchField = ({ name, label, placeholder, required = false }) => {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [patients, setPatients] = useState([]);
+  const [availablePatients, setAvailablePatients] = useState([]); // ⭐ Pacientes disponibles (sin referencias pendientes)
   const [filteredPatients, setFilteredPatients] = useState([]);
   const [showResults, setShowResults] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const resultsRef = useRef(null);
   
-  // Cargar todos los pacientes al montar el componente
+  // Cargar pacientes y referencias al montar el componente
   useEffect(() => {
-    const fetchPatients = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await getAllPatients();
-        setPatients(data);
+        const [patientsData, referralsData] = await Promise.all([
+          getAllPatients(),
+          getAllReferrals()
+        ]);
+        
+        // Filtrar pacientes que NO tienen referencias pendientes
+        const patientsWithPendingReferrals = referralsData
+          .filter(referral => referral.status === 'Pendiente')
+          .map(referral => referral.patient_id);
+        
+        const availablePatientsData = patientsData.filter(
+          patient => !patientsWithPendingReferrals.includes(patient.id)
+        );
+        
+        setPatients(patientsData);
+        setAvailablePatients(availablePatientsData);
         
         // Si ya hay un valor seleccionado, buscar el paciente correspondiente
         if (field.value) {
-          const patient = data.find(p => p.id.toString() === field.value.toString());
+          const patient = patientsData.find(p => p.id.toString() === field.value.toString());
           if (patient) {
             setSelectedPatient(patient);
             setSearchTerm(`${patient.first_name} ${patient.last_name}`);
           }
         }
       } catch (error) {
-        console.error('Error al cargar pacientes:', error);
+        console.error('Error al cargar datos:', error);
       } finally {
         setLoading(false);
       }
     };
     
-    fetchPatients();
+    fetchData();
   }, [field.value]);
   
-  // Filtrar pacientes según término de búsqueda
+  // Filtrar pacientes disponibles según término de búsqueda
   useEffect(() => {
     if (searchTerm.trim() === '') {
       setFilteredPatients([]);
@@ -49,14 +65,14 @@ const PatientSearchField = ({ name, label, placeholder, required = false }) => {
     }
     
     const term = searchTerm.toLowerCase().trim();
-    const filtered = patients.filter(patient => {
+    const filtered = availablePatients.filter(patient => {
       const fullName = `${patient.first_name} ${patient.last_name}`.toLowerCase();
       return fullName.includes(term) || 
              (patient.ci && patient.ci.toLowerCase().includes(term));
     });
     
     setFilteredPatients(filtered);
-  }, [searchTerm, patients]);
+  }, [searchTerm, availablePatients]);
   
   // Cerrar resultados al hacer clic fuera del componente
   useEffect(() => {
@@ -170,7 +186,13 @@ const PatientSearchField = ({ name, label, placeholder, required = false }) => {
       {showResults && searchTerm.trim() !== '' && filteredPatients.length === 0 && !loading && (
         <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md overflow-hidden">
           <div className="px-4 py-3 text-sm text-gray-700">
-            No se encontraron pacientes. Intente con otro término de búsqueda.
+            {availablePatients.length === 0 ? (
+              <span className="text-orange-600">
+                ⚠️ Todos los pacientes tienen referencias pendientes o no hay pacientes disponibles.
+              </span>
+            ) : (
+              'No se encontraron pacientes disponibles. Intente con otro término de búsqueda.'
+            )}
           </div>
         </div>
       )}
@@ -187,6 +209,13 @@ const PatientSearchField = ({ name, label, placeholder, required = false }) => {
           {selectedPatient.hospital_name && (
             <span> • Hospital: {selectedPatient.hospital_name}</span>
           )}
+        </div>
+      )}
+      
+      {/* Información sobre pacientes filtrados */}
+      {availablePatients.length !== patients.length && (
+        <div className="mt-1 text-xs text-gray-500">
+          ℹ️ Solo se muestran pacientes sin referencias pendientes ({availablePatients.length} de {patients.length} disponibles)
         </div>
       )}
     </div>

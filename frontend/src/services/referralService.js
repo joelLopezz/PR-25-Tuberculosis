@@ -52,3 +52,17 @@ export const deleteReferral = async (id) => {
     throw error.response?.data || { message: 'Error al eliminar referencia' };
   }
 };
+
+// NUEVA FUNCIÓN: Verificar si un paciente tiene referencias pendientes
+export const checkPatientPendingReferrals = async (patientId) => {
+  try {
+    const referrals = await getAllReferrals();
+    const pendingReferrals = referrals.filter(
+      referral => referral.patient_id === parseInt(patientId) && referral.status === 'Pendiente'
+    );
+    return pendingReferrals.length > 0;
+  } catch (error) {
+    console.error('Error al verificar referencias pendientes:', error);
+    return false;
+  }
+};
