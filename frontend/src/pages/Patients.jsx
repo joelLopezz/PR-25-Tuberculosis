@@ -79,6 +79,8 @@ const Patients = () => {
       // ⭐ NUEVO: Manejo específico para errores 409 (Conflict) - paciente con referencias
       if (err.status === 409 || (err.response && err.response.status === 409)) {
         const errorData = err.response?.data || err;
+        console.log('Error 409 detectado, datos:', errorData); // ⭐ Debug
+        
         setDeleteError({
           type: 'references',
           message: errorData.message,
@@ -90,7 +92,12 @@ const Patients = () => {
         
         // ⭐ NUEVO: Cerrar modal de confirmación y abrir modal de error
         setShowDeleteModal(false);
-        setShowErrorModal(true);
+        
+        // ⭐ AGREGAR DELAY para asegurar que el modal anterior se cierre completamente
+        setTimeout(() => {
+          setShowErrorModal(true);
+          console.log('Modal de error abierto'); // ⭐ Debug
+        }, 100);
       } else {
         // Error genérico
         setDeleteError({
@@ -316,76 +323,84 @@ const Patients = () => {
         itemType="paciente"
       />
 
-      {/* ⭐ MODAL DE ERROR PARA REFERENCIAS */}
+      {/* ⭐ MODAL DE ERROR PARA REFERENCIAS - SIMPLIFICADO */}
       {showErrorModal && deleteError && (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div 
-              className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-              onClick={handleCloseModal}
-              aria-hidden="true"
-            ></div>
-            
-            {/* Centrado del modal */}
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full mx-4">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 max-h-96 overflow-y-auto">
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <div className="fixed inset-0 z-[99999] overflow-y-auto" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div className="relative bg-white rounded-lg shadow-xl max-w-lg w-full">
+              {/* Cabecera del modal */}
+              <div className="px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                     </svg>
                   </div>
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">No se puede eliminar el paciente</h3>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-700 mb-3">
-                        {deleteError.message}
-                      </p>
-                      
-                      {deleteError.type === 'references' && deleteError.details && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-3">
-                          <h4 className="text-sm font-medium text-yellow-800 mb-2">Detalle de referencias:</h4>
-                          <ul className="text-xs text-yellow-700 space-y-1">
-                            {deleteError.details.pending > 0 && (
-                              <li>• {deleteError.details.pending} referencia(s) pendiente(s)</li>
-                            )}
-                            {deleteError.details.accepted > 0 && (
-                              <li>• {deleteError.details.accepted} referencia(s) aceptada(s)</li>
-                            )}
-                            {deleteError.details.completed > 0 && (
-                              <li>• {deleteError.details.completed} referencia(s) completada(s)</li>
-                            )}
-                            {deleteError.details.rejected > 0 && (
-                              <li>• {deleteError.details.rejected} referencia(s) rechazada(s)</li>
-                            )}
-                          </ul>
-                        </div>
-                      )}
-                      
-                      <div className="mt-3 text-xs text-gray-500 bg-blue-50 p-2 rounded">
-                        <p><strong>Sugerencia:</strong> Para eliminar este paciente, primero gestione o elimine todas sus referencias a través del módulo de Referencias.</p>
-                      </div>
-                    </div>
+                  <div className="ml-3">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      No se puede eliminar el paciente
+                    </h3>
                   </div>
+                  <button
+                    onClick={handleCloseModal}
+                    className="ml-auto -mr-1 p-1 hover:bg-gray-100 rounded"
+                  >
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                  </button>
                 </div>
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200">
-                <Link
-                  to="/referencias"
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-300"
+
+              {/* Contenido del modal */}
+              <div className="px-6 py-4">
+                <p className="text-sm text-gray-700 mb-4">
+                  {deleteError.message}
+                </p>
+                
+                {deleteError.type === 'references' && deleteError.details && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
+                    <h4 className="text-sm font-medium text-yellow-800 mb-2">Detalle de referencias:</h4>
+                    <ul className="text-xs text-yellow-700 space-y-1">
+                      {deleteError.details.pending > 0 && (
+                        <li>• {deleteError.details.pending} referencia(s) pendiente(s)</li>
+                      )}
+                      {deleteError.details.accepted > 0 && (
+                        <li>• {deleteError.details.accepted} referencia(s) aceptada(s)</li>
+                      )}
+                      {deleteError.details.completed > 0 && (
+                        <li>• {deleteError.details.completed} referencia(s) completada(s)</li>
+                      )}
+                      {deleteError.details.rejected > 0 && (
+                        <li>• {deleteError.details.rejected} referencia(s) rechazada(s)</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <p className="text-xs text-blue-700">
+                    <strong>Sugerencia:</strong> Para eliminar este paciente, primero gestione o elimine todas sus referencias a través del módulo de Referencias.
+                  </p>
+                </div>
+              </div>
+
+              {/* Botones del modal */}
+              <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                <button
+                  type="button"
                   onClick={handleCloseModal}
-                >
-                  Ver Referencias
-                </Link>
-                <button 
-                  type="button" 
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors duration-300"
-                  onClick={handleCloseModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Cerrar
                 </button>
+                <Link
+                  to="/referencias"
+                  onClick={handleCloseModal}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Ver Referencias
+                </Link>
               </div>
             </div>
           </div>
@@ -394,5 +409,6 @@ const Patients = () => {
     </div>
   );
 };
+
 
 export default Patients;
