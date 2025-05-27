@@ -2,13 +2,38 @@
 const db = require('../config/db');
 
 /**
- * Obtener todas las redes de salud activas
+ * Obtener todas las redes de salud activas, incluyendo el conteo de hospitales y municipios.
  * @returns {Promise} Promesa con los resultados
  */
 const getAllNetworks = () => {
   return new Promise((resolve, reject) => {
-    db.query('SELECT * FROM networks WHERE status = 1 ORDER BY name ASC', (err, results) => {
+    const query = `
+      SELECT 
+        n.id, 
+        n.name, 
+        n.code, 
+        n.status, 
+        n.created_at, 
+        n.updated_at,
+        COUNT(DISTINCT h.id) AS hospital_count,    -- Conteo de hospitales
+        COUNT(DISTINCT m.id) AS municipality_count -- Conteo de municipios
+      FROM 
+        networks n
+      LEFT JOIN 
+        hospitals h ON n.id = h.network_id AND h.status = 1 -- Unir con hospitales
+      LEFT JOIN 
+        municipalities m ON n.id = m.network_id AND m.status = 1 -- Unir con municipios
+      WHERE 
+        n.status = 1
+      GROUP BY 
+        n.id, n.name, n.code, n.status, n.created_at, n.updated_at -- Agrupar por todos los campos de network
+      ORDER BY 
+        n.name ASC
+    `;
+
+    db.query(query, (err, results) => {
       if (err) {
+        console.error("Error en getAllNetworks del modelo:", err); // Añadir log para depuración
         return reject(err);
       }
       resolve(results);
@@ -23,6 +48,8 @@ const getAllNetworks = () => {
  */
 const getNetworkById = (id) => {
   return new Promise((resolve, reject) => {
+    // También puedes querer que esta función incluya conteos si la usas en otro lugar del frontend
+    // Por ahora, solo la consulta básica
     db.query('SELECT * FROM networks WHERE id = ? AND status = 1', [id], (err, results) => {
       if (err) {
         return reject(err);
