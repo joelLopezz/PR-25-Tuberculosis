@@ -395,12 +395,13 @@ const Referrals = () => {
                         </button>
                       )}
 
-                    {/* Cualquier hospital puede crear contrareferencia cuando está aceptada */}
-                    {referral.status === "Aceptada" && (
+                    {/* ⭐ CORREGIDO: Solo el hospital de destino puede crear contrareferencia cuando está aceptada */}
+                    {referral.status === "Aceptada" && 
+                     referral.destination_hospital_id === user.hospital_id && (
                       <Link
                         to={`/crear-contrareferencia/${referral.id}`}
                         className="text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 p-1.5 rounded-full transition-colors duration-300"
-                        title="Crear contrareferencia"
+                        title="Crear contrareferencia (Solo hospital de destino)"
                       >
                         <svg
                           className="h-5 w-5"

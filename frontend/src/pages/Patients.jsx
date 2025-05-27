@@ -398,7 +398,7 @@ const Patients = () => {
               
               <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
                 <p className="text-xs text-blue-700">
-                  <strong>💡 Sugerencia:</strong> Para eliminar este paciente, primero gestione o elimine todas sus referencias a través del módulo de Referencias.
+                  <strong>💡 Sugerencia:</strong> Para eliminar este paciente, primero gestione o elimine todas sus referencias PENDIENTES a través del módulo de Referencias.
                 </p>
               </div>
             </div>
