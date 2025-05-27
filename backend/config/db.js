@@ -2,7 +2,6 @@
 const mysql = require('mysql2');
 require('dotenv').config();
 
-// ⭐ CORREGIDO: Solo usar opciones válidas para el pool
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -11,22 +10,22 @@ const pool = mysql.createPool({
   port: process.env.DB_PORT,
   
   // ⭐ OPCIONES VÁLIDAS PARA POOL
-  waitForConnections: true,        // Esperar por conexiones disponibles
-  connectionLimit: 10,             // Máximo 10 conexiones simultáneas
-  queueLimit: 0,                   // Sin límite de cola
+  waitForConnections: true,        
+  connectionLimit: 10,             
+  queueLimit: 0,                   
   
-  // ⭐ CONFIGURACIONES SSL (para bases de datos remotas)
-  ssl: {
-    rejectUnauthorized: false      // Para evitar problemas de certificados
-  },
+  // ⭐ CAMBIO AQUÍ: Deshabilitar SSL explícitamente
+  // El error "HANDSHAKE_NO_SSL_SUPPORT" sugiere que el servidor de tu base de datos no soporta SSL.
+  // Si tu proveedor de BD confirma que sí soporta SSL y este cambio falla,
+  // podríamos necesitar una configuración SSL más específica o certificados.
+  // Pero para este error, deshabilitarlo es la primera prueba.
+  ssl: false, 
   
   // ⭐ CONFIGURACIONES ADICIONALES VÁLIDAS
-  multipleStatements: false,       // Seguridad: no permitir múltiples statements
-  namedPlaceholders: false,        // Usar ? en lugar de nombres
-  
-  // ⭐ CONFIGURACIONES DE CONEXIÓN
-  charset: 'utf8mb4',             // Charset UTF-8 completo
-  timezone: 'local'               // Usar timezone local
+  multipleStatements: false,       
+  namedPlaceholders: false,        
+  charset: 'utf8mb4',             
+  timezone: 'local'               
 });
 
 // ⭐ MANEJO DE EVENTOS DEL POOL
