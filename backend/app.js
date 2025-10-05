@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 // Define los orígenes permitidos para tu frontend
 const allowedOrigins = [
     'https://tbs-frontend-virid.vercel.app', // <--- URL CORRECTA DE TU FRONTEND DE VERCEL
-    // 'http://localhost:5173' // Descomenta esta línea si necesitas probar localmente
+    'http://localhost:5173' // Frontend local para desarrollo
 ];
 
 const corsOptions = {

@@ -19,6 +19,7 @@ Thumbs.db
 
 # Archivos sensibles
 contraseñas de usuarios.txt
+contraseñas de usaurios.txt
 *.pem
 *.key
 *.cert

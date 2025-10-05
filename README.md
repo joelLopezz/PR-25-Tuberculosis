@@ -35,6 +35,17 @@ Desarrollar un sistema web para gestionar la transferencia de pacientes con tube
 - Autenticación: JWT
 - Seguridad: Bcrypt para contraseñas
 
+#### Estado Actual (Octubre 2025)
+**✅ Proyecto funcional en desarrollo local**
+- Base de datos: MySQL local
+- Para ejecutar: Ver `SETUP_LOCAL.md`
+- Documentación: Ver `CLAUDE.md`
+
+**⚠️ Deployment en producción suspendido temporalmente**
+- La base de datos en DatabaseASP.net fue descontinuada
+- Frontend (Vercel) y Backend (Render) requieren migración de BD
+- Guía de migración disponible en `MIGRATION_GUIDE.md`
+
 ### 4. Link al Video Demostrativo YouTube
 (No disponible en este momento)
 
